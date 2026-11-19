@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Интерактивный тренажёр по математике 7 класса (алгебра и геометрия)</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✏️</text></svg>">
+</head>
+<body>
+
+  <div class="container">
+    <!-- Верхняя панель навигации -->
+    <header class="site-header">
+      <div class="top-bar">
+        <a href="index.html">← Ко всем урокам</a>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button class="btn-settings" onclick="openTelegramSettingsModal()">⚙️ Настройки Telegram</button>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px; margin-bottom:16px;">
+        <div>
+          <h1 class="main-title" id="trainerTitle">Урок 1 · Классная работа</h1>
+          <p class="subtitle" id="trainerTopic">Действия с рациональными числами. Проценты</p>
+        </div>
+
+        <!-- Выбор варианта и ввод имени -->
+        <div style="display:flex; flex-direction:column; gap:8px; min-width:260px;">
+          <label style="font-size:13.5px; color:#6d593c; font-weight:bold;">Ученик (Фамилия Имя):</label>
+          <input type="text" id="studentNameInput" class="student-name-input" placeholder="Например: Смирнов Артём" style="font-size:15px; padding:6px 12px;">
+
+          <label style="font-size:13.5px; color:#6d593c; font-weight:bold; margin-top:4px;">Выбрать работу:</label>
+          <select id="variantSelect" class="student-name-input" style="font-size:14.5px; padding:6px 8px; cursor:pointer;">
+            <optgroup label="Модуль 1: Рациональные числа и степени">
+              <option value="K-1">Урок 1 · К-1 (Классная) — Рациональные числа и проценты</option>
+              <option value="D-1">Урок 1 · Д-1 (Домашняя) — Рациональные числа и проценты</option>
+              <option value="K-2">Урок 2 · К-2 (Классная) — Степень и её свойства</option>
+              <option value="D-2">Урок 2 · Д-2 (Домашняя) — Степень и её свойства</option>
+            </optgroup>
+            <optgroup label="Модуль 2: Одночлены и многочлены">
+              <option value="K-3">Урок 3 · К-3 (Классная) — Одночлены</option>
+              <option value="D-3">Урок 3 · Д-3 (Домашняя) — Одночлены</option>
+              <option value="K-4">Урок 4 · К-4 (Классная) — Многочлены</option>
+              <option value="D-4">Урок 4 · Д-4 (Домашняя) — Многочлены</option>
+            </optgroup>
+            <optgroup label="Модуль 3: Формулы сокращённого умножения">
+              <option value="K-5">Урок 5 · К-5 (Классная) — Квадрат суммы и разности</option>
+              <option value="D-5">Урок 5 · Д-5 (Домашняя) — Квадрат суммы и разности</option>
+              <option value="K-6">Урок 6 · К-6 (Классная) — Разность квадратов</option>
+              <option value="D-6">Урок 6 · Д-6 (Домашняя) — Разность квадратов</option>
+            </optgroup>
+            <optgroup label="Модуль 4: Разложение на множители">
+              <option value="K-7">Урок 7 · К-7 (Классная) — Общий множитель и группировка</option>
+              <option value="D-7">Урок 7 · Д-7 (Домашняя) — Общий множитель и группировка</option>
+              <option value="K-8">Урок 8 · К-8 (Классная) — Разложение по формулам</option>
+              <option value="D-8">Урок 8 · Д-8 (Домашняя) — Разложение по формулам</option>
+            </optgroup>
+            <optgroup label="Модуль 5: Линейные уравнения">
+              <option value="K-9">Урок 9 · К-9 (Классная) — Линейные уравнения</option>
+              <option value="D-9">Урок 9 · Д-9 (Домашняя) — Линейные уравнения</option>
+              <option value="K-10">Урок 10 · К-10 (Классная) — Текстовые задачи</option>
+              <option value="D-10">Урок 10 · Д-10 (Домашняя) — Текстовые задачи</option>
+            </optgroup>
+            <optgroup label="Модуль 6: Функции и графики">
+              <option value="K-11">Урок 11 · К-11 (Классная) — Линейная функция</option>
+              <option value="D-11">Урок 11 · Д-11 (Домашняя) — Линейная функция</option>
+              <option value="K-12">Урок 12 · К-12 (Классная) — График y=|x| и зависимости</option>
+              <option value="D-12">Урок 12 · Д-12 (Домашняя) — График y=|x| и зависимости</option>
+            </optgroup>
+            <optgroup label="Модуль 7: Системы линейных уравнений">
+              <option value="K-13">Урок 13 · К-13 (Классная) — Графический метод</option>
+              <option value="D-13">Урок 13 · Д-13 (Домашняя) — Графический метод</option>
+              <option value="K-14">Урок 14 · К-14 (Классная) — Подстановка и сложение</option>
+              <option value="D-14">Урок 14 · Д-14 (Домашняя) — Подстановка и сложение</option>
+            </optgroup>
+            <optgroup label="Модуль 8: Начальные геометрические сведения">
+              <option value="K-15">Урок 15 · К-15 (Классная) — Отрезки и прямые</option>
+              <option value="D-15">Урок 15 · Д-15 (Домашняя) — Отрезки и прямые</option>
+              <option value="K-16">Урок 16 · К-16 (Классная) — Углы</option>
+              <option value="D-16">Урок 16 · Д-16 (Домашняя) — Углы</option>
+            </optgroup>
+            <optgroup label="Модуль 9: Треугольники">
+              <option value="K-17">Урок 17 · К-17 (Классная) — Первый признак равенства</option>
+              <option value="D-17">Урок 17 · Д-17 (Домашняя) — Первый признак равенства</option>
+              <option value="K-18">Урок 18 · К-18 (Классная) — 2-й и 3-й признаки, равнобедренный</option>
+              <option value="D-18">Урок 18 · Д-18 (Домашняя) — 2-й и 3-й признаки, равнобедренный</option>
+            </optgroup>
+            <optgroup label="Модуль 10: Параллельные прямые и сумма углов">
+              <option value="K-19">Урок 19 · К-19 (Классная) — Параллельные прямые</option>
+              <option value="D-19">Урок 19 · Д-19 (Домашняя) — Параллельные прямые</option>
+              <option value="K-20">Урок 20 · К-20 (Классная) — Сумма углов треугольника</option>
+              <option value="D-20">Урок 20 · Д-20 (Домашняя) — Сумма углов треугольника</option>
+            </optgroup>
+            <optgroup label="Модуль 11: Прямоугольный треугольник">
+              <option value="K-21">Урок 21 · К-21 (Классная) — Свойства: угол 30°, медиана</option>
+              <option value="D-21">Урок 21 · Д-21 (Домашняя) — Свойства: угол 30°, медиана</option>
+              <option value="K-22">Урок 22 · К-22 (Классная) — Признаки равенства, наклонная</option>
+              <option value="D-22">Урок 22 · Д-22 (Домашняя) — Признаки равенства, наклонная</option>
+            </optgroup>
+            <optgroup label="Модуль 12: Окружность, ГМТ, повторение и ВПР">
+              <option value="K-23">Урок 23 · К-23 (Классная) — Окружность и ГМТ</option>
+              <option value="D-23">Урок 23 · Д-23 (Домашняя) — Окружность и ГМТ</option>
+              <option value="K-24">Урок 24 · К-24 (Классная) — Подготовка к ВПР</option>
+              <option value="D-24">Урок 24 · Д-24 (Домашняя) — Подготовка к ВПР</option>
+            </optgroup>
+          </select>
+        </div>
+      </div>
+    </header>
+
+    <!-- Колода интерактивных слайдов тетради -->
+    <main id="slidesDeck"></main>
+  </div>
+
+  <!-- Фиксированная нижняя панель навигации -->
+  <footer class="sticky-footer">
+    <div class="footer-content">
+      <div class="nav-group">
+        <button class="btn-nav" id="btnPrev">◀ Назад</button>
+        <span class="slide-counter" id="slideCounter">1 / 1</span>
+        <button class="btn-nav" id="btnNext">Далее ▶</button>
+      </div>
+      <div class="nav-group">
+        <button class="btn-nav btn-check" id="btnCheck">Проверить ответ ✏️</button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Модальное окно: Памятка / Теория -->
+  <div class="modal-overlay" id="theoryModal" onclick="if(event.target === this) closeTheoryModal()">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeTheoryModal()">×</button>
+      <div id="theoryContent"></div>
+    </div>
+  </div>
+
+  <!-- Модальное окно: Настройки Telegram -->
+  <div class="modal-overlay" id="settingsModal" onclick="if(event.target === this) closeTelegramSettingsModal()">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeTelegramSettingsModal()">×</button>
+      <h3 class="modal-title">⚙️ Настройки Telegram для учителя</h3>
+
+      <p style="font-size:15px; margin-bottom:14px; color:#4a3f2b;">
+        Бот для отправки ДЗ:
+        <a href="https://t.me/AnichkovZVEROK_bot" target="_blank" style="color:var(--chalk); font-weight:bold;">@AnichkovZVEROK_bot</a>.
+      </p>
+
+      <div style="background:#fff; border:1px solid #d4c4a4; padding:14px; border-radius:6px; margin-bottom:16px; font-size:14px;">
+        <b>Как привязать приём отчётов:</b><br>
+        1. Откройте в Telegram бота <a href="https://t.me/AnichkovZVEROK_bot" target="_blank" style="color:var(--chalk); font-weight:bold;">@AnichkovZVEROK_bot</a> и нажмите <b>/start</b>.<br>
+        2. Узнайте свой числовой ID (например, через бот <code>@userinfobot</code>).<br>
+        3. Введите ID в поле ниже и нажмите «Проверить связь 🔔».
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <label for="settingChatId" style="font-weight:bold; font-size:15px;">Ваш Telegram Chat ID:</label>
+        <input type="text" id="settingChatId" class="student-name-input" placeholder="Например: 7928474241" style="font-size:16px;">
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
+          <button class="btn-hero" onclick="saveTelegramSettings()" style="padding:8px 18px; font-size:14.5px;">Сохранить в браузере 💾</button>
+          <button class="btn-send-tg" onclick="testTelegramPing()" style="padding:8px 18px; font-size:14.5px;">Проверить связь 🔔</button>
+        </div>
+        <div class="send-status-msg" id="settingStatusMsg"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="theory.js"></script>
+  <script src="tasks.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
