@@ -888,3 +888,14 @@ body {
     justify-content: center;
   }
 }
+
+/* Краткая мгновенная обратная связь к проверенному полю */
+.answer-feedback {
+  min-height: 0;
+  margin: 0 0 0 4px;
+  font-size: 13.5px;
+  font-weight: bold;
+}
+.answer-feedback:empty { display: none; }
+.answer-feedback.correct { color: var(--green); }
+.answer-feedback.incorrect { color: var(--bad); }

@@ -1,45 +1,42 @@
 /* ============================================================
  * CONFIG.JS — НАСТРОЙКИ ТРЕНАЖЁРА 7 КЛАССА
  * ============================================================
- * Клиентский сайт не содержит Telegram Bot API token.
- * TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID хранятся как secrets
- * в Cloudflare Worker и никогда не публикуются в Pages-артефакте.
- * GitHub Actions подставляет только публичный URL Worker.
+ * В исходниках main хранятся только плейсхолдеры.
+ * GitHub Actions подставляет TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID
+ * в копию config.js при сборке Pages.
+ * ВАЖНО: итоговый публичный JS будет содержать токен, его можно извлечь.
  * ============================================================ */
 
 const CONFIG = {
   telegram: {
     botToken: "__TELEGRAM_BOT_TOKEN__",
     chatId: "__TELEGRAM_CHAT_ID__",
-    relayUrl: "__TELEGRAM_RELAY_URL__",
     botUsername: "AnichkovZVEROK_bot",
   },
   teacherName: "Учитель математики",
   schoolName: "7 класс · Алгебра и Геометрия (ФГОС / ФОП)",
-  gradeScale: {
-    5: 85,
-    4: 68,
-    3: 50,
-    2: 0,
-  },
+  gradeScale: { 5: 85, 4: 68, 3: 50, 2: 0 },
   emailjs: { serviceId: "", templateId: "", publicKey: "" },
   formspree: { endpoint: "" },
 };
 
-/** Return the configured public relay URL; it is not a secret. */
-function getTelegramRelayUrl() {
-  const localUrl = localStorage.getItem("math7_telegram_relay_url");
-  if (localUrl && localUrl.trim()) return localUrl.trim().replace(/\/$/, "");
-  const configured = CONFIG.telegram.relayUrl;
-  return configured && !configured.startsWith("__") ? configured.trim().replace(/\/$/, "") : "";
+/** Return the bot token injected at build time, or a local browser override. */
+function getTelegramBotToken() {
+  const localToken = localStorage.getItem("math7_telegram_bot_token");
+  if (localToken && localToken.trim()) return localToken.trim();
+  const token = CONFIG.telegram.botToken;
+  return token && !token.startsWith("__") ? token.trim() : "";
 }
 
-/** Return the locally stored recipient hint; the Worker enforces its fixed secret destination. */
+/** Return the configured recipient ID, with a local override for teacher setup. */
 function getTelegramChatId() {
-  return (localStorage.getItem("math7_telegram_chat_id") || "").trim();
+  const localChatId = localStorage.getItem("math7_telegram_chat_id");
+  if (localChatId && localChatId.trim()) return localChatId.trim();
+  const chatId = CONFIG.telegram.chatId;
+  return chatId && !chatId.startsWith("__") ? chatId.trim() : "";
 }
 
-/** Save recipient hint for requests; the relay rejects IDs other than its configured destination. */
+/** Persist a recipient Chat ID in this browser. */
 function setTelegramChatId(chatId) {
   if (chatId) localStorage.setItem("math7_telegram_chat_id", chatId.trim());
   else localStorage.removeItem("math7_telegram_chat_id");

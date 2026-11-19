@@ -24,22 +24,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Inject public Telegram relay URL into config.js
+      - name: Inject Telegram secrets into the Pages artifact
         env:
-          TELEGRAM_RELAY_URL: ${{ vars.TELEGRAM_RELAY_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          if [ -n "$TELEGRAM_RELAY_URL" ]; then
-            sed -i "s|__TELEGRAM_RELAY_URL__|$TELEGRAM_RELAY_URL|g" config.js
+          if [ -n "$TELEGRAM_BOT_TOKEN" ]; then
+            sed -i "s|__TELEGRAM_BOT_TOKEN__|${TELEGRAM_BOT_TOKEN}|g" config.js
+          fi
+          if [ -n "$TELEGRAM_CHAT_ID" ]; then
+            sed -i "s|__TELEGRAM_CHAT_ID__|${TELEGRAM_CHAT_ID}|g" config.js
           fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
 
-      - name: Deploy to GitHub Pages
+      - name: Deploy Pages
         id: deployment
         uses: actions/deploy-pages@v4

@@ -92,7 +92,7 @@ function canon(val) {
   return s;
 }
 
-// Преобразование целого, десятичного, обыкновенного или смешанного числа в Number.
+/** Convert an integer, decimal, common fraction, or mixed number to Number. */
 function parseMathNumber(value) {
   const s = String(value ?? "").trim().replace(/[−–—]/g, "-").replace(/,/g, ".");
   const mixed = s.match(/^([+-]?\d+)\s+(\d+)\s*\/\s*(\d+)$/);
@@ -133,7 +133,7 @@ function parseList(val) {
     .sort();
 }
 
-// Проверка одного поля ввода
+/** Validate one answer, including alternatives, lists, coordinates, and numeric tolerance. */
 function checkAnswer(userVal, correctPattern, type) {
   if (!userVal || !userVal.trim()) return false;
   const userTrim = userVal.trim();
@@ -161,9 +161,9 @@ function checkAnswer(userVal, correctPattern, type) {
   }
 
   // Обычное сравнение с учетом математической гибкости
-  const uCanon = canon(userTrim).replace(/\s/g, "");
+  const uCanon = canon(userTrim).replace(/,/g, ".").replace(/\s/g, "");
   for (const pat of acceptable) {
-    const pCanon = canon(pat).replace(/\s/g, "");
+    const pCanon = canon(pat).replace(/,/g, ".").replace(/\s/g, "");
     if (uCanon === pCanon) return true;
 
     // Числовое сравнение с допуском: 3/4 == 0,75, а −3 == -3.
@@ -282,7 +282,7 @@ function loadVariant(vKey) {
           `;
         }
       });
-      html += `</div></div>`;
+      html += `</div><div class="answer-feedback" aria-live="polite"></div></div>`;
     });
 
     if (q.hints && q.hints.length) {
@@ -327,7 +327,7 @@ function loadVariant(vKey) {
       </p>
       <div class="send-inputs">
         <input type="text" class="student-name-input" id="reportStudentName" placeholder="Фамилия и Имя ученика" value="${appState.studentName}" />
-        <button class="btn-send-tg" id="btnSendTelegram">Отправить в Telegram ✈️</button>
+        <button class="btn-send-tg" id="btnSendTelegram">Отправить результат в Telegram ✈️</button>
         <button class="btn-download-report" id="btnDownloadReport">Скачать отчёт (.txt) 💾</button>
       </div>
       <div class="send-status-msg" id="sendStatusMsg"></div>
@@ -409,11 +409,17 @@ function checkCurrentSlide() {
     const isOk = checkAnswer(userVal, pat, type);
 
     inp.classList.remove("correct", "incorrect");
+    const feedback = inp.closest(".task-row")?.querySelector(".answer-feedback");
     if (isOk) {
       inp.classList.add("correct");
+      if (feedback) { feedback.className = "answer-feedback correct"; feedback.textContent = "✓ Верно"; }
     } else {
       inp.classList.add("incorrect");
       allCorrect = false;
+      if (feedback) {
+        feedback.className = "answer-feedback incorrect";
+        feedback.innerHTML = `✗ Неверно. Правильный ответ: ${formatMath(pat.split("|")[0])}`;
+      }
     }
   });
 
@@ -424,6 +430,7 @@ function checkCurrentSlide() {
  * 4. ПОДСЧЁТ РЕЗУЛЬТАТОВ И ОЦЕНИВАНИЕ
  * ============================================================ */
 
+/** Read persisted attempt counters, returning a fresh shape when storage is empty or invalid. */
 function readMath7Stats() {
   try {
     return JSON.parse(localStorage.getItem("math7_stats")) || { attempts: 0, correct: 0, incorrect: 0, lessons: {} };
@@ -432,6 +439,7 @@ function readMath7Stats() {
   }
 }
 
+/** Add one completed work and its correct/incorrect counts to session and lesson totals. */
 function recordMath7Stats(lesson, correct, incorrect) {
   const stats = readMath7Stats();
   stats.attempts += 1;
@@ -450,7 +458,8 @@ function renderMath7Stats() {
   const stats = readMath7Stats();
   const lesson = appState.variantKey.split("-")[1];
   const lessonStats = stats.lessons[lesson] || { attempts: 0, correct: 0, incorrect: 0 };
-  el.textContent = `Статистика на этом устройстве · всего: ${stats.attempts} работ, ${stats.correct} верно, ${stats.incorrect} ошибок · урок ${lesson}: ${lessonStats.correct} верно, ${lessonStats.incorrect} ошибок`;
+  const current = appState.results || { correctCount: 0, incorrectCount: 0 };
+  el.textContent = `Эта работа: ${current.correctCount} верно, ${current.incorrectCount} ошибок · всего: ${stats.attempts} работ, ${stats.correct} верно, ${stats.incorrect} ошибок · урок ${lesson}: ${lessonStats.correct} верно, ${lessonStats.incorrect} ошибок`;
 }
 
 function resetMath7Stats() {
@@ -458,6 +467,7 @@ function resetMath7Stats() {
   renderMath7Stats();
 }
 
+/** Score the current work, persist its counters once, and render the result summary. */
 function calculateResults() {
   const shouldRecordStats = !appState.results;
   const allInputs = $$("#slidesDeck .math-input");
@@ -618,71 +628,64 @@ function calculateResults() {
  * 5. ОТПРАВКА В TELEGRAM BOT API И СКАЧИВАНИЕ ОТЧЁТА
  * ============================================================ */
 
-// Формирование текстового отчёта
+/** Escape user-controlled strings for Telegram's HTML parse mode. */
+function escapeTelegramHtml(value) {
+  return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Build the HTML report sent to the teacher, preserving the etalon message format. */
 function buildTelegramMessage(results) {
   const vData = TASKS[appState.variantKey];
-  const name = appState.studentName || "Ученик (без имени)";
-
+  const name = escapeTelegramHtml(appState.studentName || "Ученик (без имени)");
   let msg = `📚 <b>Тренажёр по математике · 7 класс</b>\n\n`;
   msg += `👤 <b>Ученик:</b> ${name}\n`;
-  msg += `📖 <b>Работа:</b> ${vData.title}\n`;
-  msg += `📌 <b>Тема:</b> ${vData.topic}\n`;
-  msg += `⏱ <b>Время работы:</b> ${results.timeString}\n`;
+  msg += `📖 <b>Работа:</b> ${escapeTelegramHtml(vData.title)}\n`;
+  msg += `📌 <b>Тема:</b> ${escapeTelegramHtml(vData.topic)}\n`;
+  msg += `⏱ <b>Время работы:</b> ${escapeTelegramHtml(results.timeString)}\n`;
   msg += `📊 <b>Результат:</b> ${results.totalScore} из ${results.maxScore} баллов (${results.percent}%)\n`;
-  msg += `🏆 <b>Оценка:</b> ${results.gradeText}\n`;
-  msg += `📅 <b>Дата:</b> ${results.date}\n\n`;
+  msg += `🏆 <b>Оценка:</b> ${escapeTelegramHtml(results.gradeText)}\n`;
+  msg += `📅 <b>Дата:</b> ${escapeTelegramHtml(results.date)}\n\n`;
 
-  const mistakes = results.reviewItems.filter((i) => !i.isOk);
+  const mistakes = results.reviewItems.filter((item) => !item.isOk);
   if (mistakes.length === 0) {
     msg += `✅ <b>Все задания выполнены безупречно!</b> 🌟`;
   } else {
     msg += `⚠️ <b>Ошибки в заданиях (${mistakes.length}):</b>\n`;
-    mistakes.forEach((m) => {
-      msg += `• Зад. ${m.qNum} (${m.qTitle}): ответ "${m.userVal}", верно "${m.correctVal}"\n`;
+    mistakes.forEach((item) => {
+      msg += `• Зад. ${escapeTelegramHtml(item.qNum)} (${escapeTelegramHtml(item.qTitle)}): ответ "${escapeTelegramHtml(item.userVal)}", верно "${escapeTelegramHtml(item.correctVal)}"\n`;
     });
   }
-
   return msg;
 }
 
-// Отправка отчёта через защищённый Cloudflare Worker relay
+/** Send the completed work directly to Telegram Bot API from the browser. */
 async function sendToTelegram() {
-  const nameInp = $("#reportStudentName");
-  if (nameInp && nameInp.value.trim()) {
-    appState.studentName = nameInp.value.trim();
+  const nameInput = $("#reportStudentName");
+  if (nameInput && nameInput.value.trim()) {
+    appState.studentName = nameInput.value.trim();
     localStorage.setItem("math7_student_name", appState.studentName);
   }
-
+  const botToken = getTelegramBotToken();
   const chatId = getTelegramChatId();
-  if (!chatId) {
-    showStatusMsg("err", "⚠️ Укажите Telegram Chat ID учителя в настройках.");
-    openTelegramSettingsModal();
+  if (!botToken || !chatId) {
+    showStatusMsg("err", "⚠️ Не настроены Bot Token или Chat ID. Проверьте GitHub Secrets и настройки Telegram.");
+    if (!chatId) openTelegramSettingsModal();
     return;
   }
-  const relayUrl = getTelegramRelayUrl();
-  if (!relayUrl) {
-    showStatusMsg("err", "⚠️ Telegram relay ещё не настроен. Учителю нужно задать TELEGRAM_RELAY_URL в GitHub Variables.");
-    return;
-  }
-
   if (!appState.results) calculateResults();
-  const msgText = buildTelegramMessage(appState.results);
   showStatusMsg("wait", "Отправляю отчёт учителю в Telegram... ⏳");
   try {
-    const res = await fetch(relayUrl, {
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: msgText }),
+      body: JSON.stringify({ chat_id: chatId, text: buildTelegramMessage(appState.results), parse_mode: "HTML" }),
     });
-    const data = await res.json();
-    if (res.ok && data.ok) {
-      showStatusMsg("ok", "✅ Результат успешно отправлен учителю в Telegram!");
-    } else {
-      throw new Error(data.error || `HTTP ${res.status}`);
-    }
-  } catch (err) {
-    console.error("Telegram relay error:", err);
-    showStatusMsg("err", `❌ Ошибка отправки: ${err.message}. Проверьте настройки Telegram relay и Chat ID.`);
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.description || `HTTP ${response.status}`);
+    showStatusMsg("ok", "✅ Результат успешно отправлен учителю в Telegram!");
+  } catch (error) {
+    console.error("Telegram send error:", error);
+    showStatusMsg("err", `❌ Ошибка отправки: ${error.message}. Проверьте Chat ID и команду /start у бота.`);
   }
 }
 
@@ -832,35 +835,34 @@ function saveTelegramSettings() {
   }
 }
 
-// Тестовая отправка через relay из окна настроек
+/** Send a test message to the configured Telegram chat. */
 async function testTelegramPing() {
   const input = $("#settingChatId");
-  const msgEl = $("#settingStatusMsg");
+  const status = $("#settingStatusMsg");
   if (!input) return;
   const chatId = input.value.trim();
-  const relayUrl = getTelegramRelayUrl();
-  if (!chatId) {
-    if (msgEl) { msgEl.className = "send-status-msg err"; msgEl.textContent = "⚠️ Сначала введите Chat ID!"; }
+  const botToken = getTelegramBotToken();
+  if (!chatId || !botToken) {
+    if (status) {
+      status.className = "send-status-msg err";
+      status.textContent = !chatId ? "⚠️ Сначала введите Chat ID!" : "⚠️ Bot Token не настроен в сборке.";
+    }
     return;
   }
-  if (!relayUrl) {
-    if (msgEl) { msgEl.className = "send-status-msg err"; msgEl.textContent = "⚠️ Учителю нужно сначала настроить Telegram relay."; }
-    return;
-  }
-  if (msgEl) { msgEl.className = "send-status-msg wait"; msgEl.textContent = "Отправляю тестовый сигнал боту... ⏳"; }
-  const text = `📚 <b>Тренажёр по математике · 7 класс</b>\n\n🔔 <b>Тестовое подключение</b> · бот @${CONFIG.telegram.botUsername}.`;
+  if (status) { status.className = "send-status-msg wait"; status.textContent = "Отправляю тестовый сигнал боту... ⏳"; }
+  const text = `🔔 <b>Тестовое подключение успешно!</b>\n\nТренажёр по математике (7 класс) подключён к боту @${CONFIG.telegram.botUsername}.`;
   try {
-    const res = await fetch(relayUrl, {
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text }),
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
     });
-    const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.description || `HTTP ${response.status}`);
     setTelegramChatId(chatId);
-    if (msgEl) { msgEl.className = "send-status-msg ok"; msgEl.textContent = "🎉 Сообщение доставлено в Telegram! Связь установлена."; }
-  } catch (err) {
-    if (msgEl) { msgEl.className = "send-status-msg err"; msgEl.textContent = `❌ Ошибка: ${err.message}. Проверьте, что Chat ID совпадает с TELEGRAM_CHAT_ID в Worker.`; }
+    if (status) { status.className = "send-status-msg ok"; status.textContent = "🎉 Тестовое сообщение доставлено в Telegram!"; }
+  } catch (error) {
+    if (status) { status.className = "send-status-msg err"; status.textContent = `❌ Ошибка: ${error.message}. Убедитесь, что боту отправлена команда /start.`; }
   }
 }
 
