@@ -1,10 +1,9 @@
 /* ============================================================
  * CONFIG.JS — НАСТРОЙКИ ТРЕНАЖЁРА 7 КЛАССА
  * ============================================================
- * В исходниках main хранятся только плейсхолдеры.
- * GitHub Actions подставляет TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID
- * в копию config.js при сборке Pages.
- * ВАЖНО: итоговый публичный JS будет содержать токен, его можно извлечь.
+ * GitHub Actions replaces placeholders in the Pages artifact.
+ * In the selected direct-browser mode, the built public JS contains
+ * the Bot Token and can be inspected by site visitors.
  * ============================================================ */
 
 const CONFIG = {
@@ -20,24 +19,14 @@ const CONFIG = {
   formspree: { endpoint: "" },
 };
 
-/** Return the bot token injected at build time, or a local browser override. */
+/** Return a Bot Token injected by the Pages build, or an empty string. */
 function getTelegramBotToken() {
-  const localToken = localStorage.getItem("math7_telegram_bot_token");
-  if (localToken && localToken.trim()) return localToken.trim();
   const token = CONFIG.telegram.botToken;
   return token && !token.startsWith("__") ? token.trim() : "";
 }
 
-/** Return the configured recipient ID, with a local override for teacher setup. */
+/** Return the teacher's fixed recipient ID injected by the Pages build. */
 function getTelegramChatId() {
-  const localChatId = localStorage.getItem("math7_telegram_chat_id");
-  if (localChatId && localChatId.trim()) return localChatId.trim();
   const chatId = CONFIG.telegram.chatId;
   return chatId && !chatId.startsWith("__") ? chatId.trim() : "";
-}
-
-/** Persist a recipient Chat ID in this browser. */
-function setTelegramChatId(chatId) {
-  if (chatId) localStorage.setItem("math7_telegram_chat_id", chatId.trim());
-  else localStorage.removeItem("math7_telegram_chat_id");
 }

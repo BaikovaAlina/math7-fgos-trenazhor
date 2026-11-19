@@ -19,6 +19,7 @@ const appState = {
   currentSlide: 0,
   startTime: null,
   results: null,
+  telegramAttempted: false,
 };
 
 // Вспомогательные функции селекторов
@@ -222,6 +223,7 @@ function loadVariant(vKey) {
   appState.currentSlide = 0;
   appState.startTime = new Date();
   appState.results = null;
+  appState.telegramAttempted = false;
 
   // Обновление заголовков
   const titleEl = $("#trainerTitle");
@@ -323,10 +325,9 @@ function loadVariant(vKey) {
     <div class="send-box">
       <h3>📩 Отправить результат учителю</h3>
       <p style="font-size:14.5px; color:#52441a;">
-        Результат будет мгновенно доставлен в Telegram-бот учителю.
+        Отчёт автоматически отправляется учителю при завершении работы. Повторная отправка доступна кнопкой ниже.
       </p>
       <div class="send-inputs">
-        <input type="text" class="student-name-input" id="reportStudentName" placeholder="Фамилия и Имя ученика" value="${appState.studentName}" />
         <button class="btn-send-tg" id="btnSendTelegram">Отправить результат в Telegram ✈️</button>
         <button class="btn-download-report" id="btnDownloadReport">Скачать отчёт (.txt) 💾</button>
       </div>
@@ -385,9 +386,13 @@ function goToSlide(index) {
   });
   appState.currentSlide = index;
 
-  // Если перешли на слайд результатов — рассчитываем результат
+  // При первом переходе к итогам оцениваем работу и автоматически отправляем отчёт.
   if (index === appState.slides.length - 1) {
     calculateResults();
+    if (!appState.telegramAttempted) {
+      appState.telegramAttempted = true;
+      void sendToTelegram({ automatic: true });
+    }
   }
 
   updateNav();
@@ -659,21 +664,16 @@ function buildTelegramMessage(results) {
 }
 
 /** Send the completed work directly to Telegram Bot API from the browser. */
-async function sendToTelegram() {
-  const nameInput = $("#reportStudentName");
-  if (nameInput && nameInput.value.trim()) {
-    appState.studentName = nameInput.value.trim();
-    localStorage.setItem("math7_student_name", appState.studentName);
-  }
+async function sendToTelegram({ automatic = false } = {}) {
   const botToken = getTelegramBotToken();
   const chatId = getTelegramChatId();
   if (!botToken || !chatId) {
-    showStatusMsg("err", "⚠️ Не настроены Bot Token или Chat ID. Проверьте GitHub Secrets и настройки Telegram.");
-    if (!chatId) openTelegramSettingsModal();
+    const missing = !botToken ? "Bot Token" : "Chat ID";
+    showStatusMsg("err", `⚠️ Учителю нужно настроить ${missing} в GitHub Actions Secrets; ученик ничего вводить не должен.`);
     return;
   }
   if (!appState.results) calculateResults();
-  showStatusMsg("wait", "Отправляю отчёт учителю в Telegram... ⏳");
+  showStatusMsg("wait", automatic ? "Автоматически отправляю результат учителю... ⏳" : "Отправляю отчёт учителю в Telegram... ⏳");
   try {
     const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: "POST",
@@ -682,10 +682,10 @@ async function sendToTelegram() {
     });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.description || `HTTP ${response.status}`);
-    showStatusMsg("ok", "✅ Результат успешно отправлен учителю в Telegram!");
+    showStatusMsg("ok", "✅ Результат автоматически отправлен учителю в Telegram!");
   } catch (error) {
     console.error("Telegram send error:", error);
-    showStatusMsg("err", `❌ Ошибка отправки: ${error.message}. Проверьте Chat ID и команду /start у бота.`);
+    showStatusMsg("err", `❌ Не удалось отправить отчёт: ${error.message}. Ученику вводить Chat ID не нужно.`);
   }
 }
 
@@ -730,11 +730,8 @@ function setupEvents() {
   document.addEventListener("click", (e) => {
     if (e.target.closest("#btnRestart")) loadVariant(appState.variantKey);
     if (e.target.closest("#btnResetStats")) resetMath7Stats();
+    if (e.target.closest("#btnSendTelegram")) void sendToTelegram();
   });
-
-  // Кнопка отправки в Telegram
-  const sendBtn = $("#btnSendTelegram");
-  if (sendBtn) sendBtn.addEventListener("click", sendToTelegram);
 
   // Кнопка скачивания файла
   const dlBtn = $("#btnDownloadReport");
@@ -803,13 +800,7 @@ function closeTheoryModal() {
 // Открытие окна настроек Telegram
 function openTelegramSettingsModal() {
   const modal = $("#settingsModal");
-  if (!modal) return;
-
-  const currentChatId = getTelegramChatId();
-  const input = $("#settingChatId");
-  if (input) input.value = currentChatId;
-
-  modal.classList.add("open");
+  if (modal) modal.classList.add("open");
 }
 
 function closeTelegramSettingsModal() {
@@ -817,39 +808,19 @@ function closeTelegramSettingsModal() {
   if (modal) modal.classList.remove("open");
 }
 
-// Сохранение Chat ID
-function saveTelegramSettings() {
-  const input = $("#settingChatId");
-  const msgEl = $("#settingStatusMsg");
-  if (!input) return;
-
-  const chatId = input.value.trim();
-  setTelegramChatId(chatId);
-
-  if (msgEl) {
-    msgEl.className = "send-status-msg ok";
-    msgEl.textContent = "✅ Chat ID успешно сохранён в браузере!";
-    setTimeout(() => {
-      closeTelegramSettingsModal();
-    }, 1200);
-  }
-}
-
-/** Send a test message to the configured Telegram chat. */
+/** Send a test message to the teacher's fixed, build-configured recipient. */
 async function testTelegramPing() {
-  const input = $("#settingChatId");
   const status = $("#settingStatusMsg");
-  if (!input) return;
-  const chatId = input.value.trim();
   const botToken = getTelegramBotToken();
-  if (!chatId || !botToken) {
+  const chatId = getTelegramChatId();
+  if (!botToken || !chatId) {
     if (status) {
       status.className = "send-status-msg err";
-      status.textContent = !chatId ? "⚠️ Сначала введите Chat ID!" : "⚠️ Bot Token не настроен в сборке.";
+      status.textContent = `⚠️ Не настроен ${!botToken ? "Bot Token" : "Chat ID"}. Учителю нужно задать GitHub Actions Secrets.`;
     }
     return;
   }
-  if (status) { status.className = "send-status-msg wait"; status.textContent = "Отправляю тестовый сигнал боту... ⏳"; }
+  if (status) { status.className = "send-status-msg wait"; status.textContent = "Отправляю тестовое сообщение... ⏳"; }
   const text = `🔔 <b>Тестовое подключение успешно!</b>\n\nТренажёр по математике (7 класс) подключён к боту @${CONFIG.telegram.botUsername}.`;
   try {
     const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -859,10 +830,9 @@ async function testTelegramPing() {
     });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.description || `HTTP ${response.status}`);
-    setTelegramChatId(chatId);
-    if (status) { status.className = "send-status-msg ok"; status.textContent = "🎉 Тестовое сообщение доставлено в Telegram!"; }
+    if (status) { status.className = "send-status-msg ok"; status.textContent = "🎉 Тестовое сообщение доставлено в настроенный чат учителя."; }
   } catch (error) {
-    if (status) { status.className = "send-status-msg err"; status.textContent = `❌ Ошибка: ${error.message}. Убедитесь, что боту отправлена команда /start.`; }
+    if (status) { status.className = "send-status-msg err"; status.textContent = `❌ Не удалось проверить Telegram: ${error.message}`; }
   }
 }
 

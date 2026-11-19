@@ -564,20 +564,14 @@
       </p>
 
       <div style="background:#fff; border:1px solid #d4c4a4; padding:14px; border-radius:6px; margin-bottom:16px; font-size:14px;">
-        <b>Как учителю получать отчёты учеников:</b><br>
-        1. Откройте Telegram и напишите боту <a href="https://t.me/AnichkovZVEROK_bot" target="_blank" style="color:var(--chalk); font-weight:bold;">@AnichkovZVEROK_bot</a> команду <code>/start</code>.<br>
-        2. Узнайте свой числовой <b>Chat ID</b> (например, написав боту <code>@userinfobot</code>).<br>
-        3. Введите ваш <b>Chat ID</b> в поле ниже и нажмите «Проверить связь 🔔».
+        <b>Автоматическая отправка отчётов:</b><br>
+        1. Учитель один раз запускает бота <a href="https://t.me/AnichkovZVEROK_bot" target="_blank" style="color:var(--chalk); font-weight:bold;">@AnichkovZVEROK_bot</a> командой <code>/start</code>.<br>
+        2. Chat ID учителя уже настроен. Ученику вводить или сохранять его не нужно.<br>
+        3. После перехода к итогам работы отчёт отправляется в заданный чат автоматически.
       </div>
 
       <div style="display:flex; flex-direction:column; gap:10px;">
-        <label for="settingChatId" style="font-weight:bold; font-size:15px;">Ваш Telegram Chat ID (или ID группы):</label>
-        <input type="text" id="settingChatId" class="student-name-input" placeholder="Например: 7928474241" style="font-size:16px;">
-
-        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
-          <button class="btn-hero" onclick="saveTelegramSettings()" style="padding:8px 18px; font-size:14.5px;">Сохранить в браузере 💾</button>
-          <button class="btn-send-tg" onclick="testTelegramPing()" style="padding:8px 18px; font-size:14.5px;">Проверить связь 🔔</button>
-        </div>
+        <button class="btn-send-tg" onclick="testTelegramPing()" style="padding:8px 18px; font-size:14.5px; align-self:flex-start;">Проверить связь 🔔</button>
         <div class="send-status-msg" id="settingStatusMsg"></div>
       </div>
     </div>
