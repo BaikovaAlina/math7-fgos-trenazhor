@@ -4,8 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Интерактивный тренажёр по математике 7 класса (алгебра и геометрия)</title>
-  <link rel="stylesheet" href="style.css?v=20261119.3">
+  <link rel="stylesheet" href="style.css?v=20261119.4">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✏️</text></svg>">
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [["\\(", "\\)"]] },
+      options: { processHtmlClass: "math-tex", ignoreHtmlClass: "tex2jax_ignore" },
+      startup: { typeset: false }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script>
 </head>
 <body>
 
@@ -104,6 +112,32 @@
               <option value="K-24">Урок 24 · К-24 (Классная) — Подготовка к ВПР</option>
               <option value="D-24">Урок 24 · Д-24 (Домашняя) — Подготовка к ВПР</option>
             </optgroup>
+            <optgroup label="Дополнительный банк · 130 задач">
+              <option value="EX-01">Числовые выражения и переменные · 10 задач</option>
+              <option value="EX-02">Линейные уравнения · 10 задач</option>
+              <option value="EX-03">Текстовые задачи · 10 задач</option>
+              <option value="EX-04">Степень и её свойства · 10 задач</option>
+              <option value="EX-05">Одночлены · 10 задач</option>
+              <option value="EX-06">Многочлены · 10 задач</option>
+              <option value="EX-07">Формулы сокращённого умножения · 10 задач</option>
+              <option value="EX-08">Разложение на множители · 10 задач</option>
+              <option value="EX-09">Линейная функция · 10 задач</option>
+              <option value="EX-10">Системы уравнений · 10 задач</option>
+              <option value="EX-11">Обыкновенные и алгебраические дроби · 10 задач</option>
+              <option value="EX-12">Степени и квадратные корни · 10 задач</option>
+              <option value="EX-13">Начальная геометрия · 10 задач</option>
+            </optgroup>
+            <optgroup label="Алгебра 7 · 135 тематических задач">
+              <option value="A7-01">Степени · 15 задач</option>
+              <option value="A7-02">Одночлены · 15 задач</option>
+              <option value="A7-03">Многочлены · 15 задач</option>
+              <option value="A7-04">Формулы сокращённого умножения · 15 задач</option>
+              <option value="A7-05">Разложение на множители · 15 задач</option>
+              <option value="A7-06">Целые выражения и степени · 15 задач</option>
+              <option value="A7-07">Линейные уравнения · 15 задач</option>
+              <option value="A7-08">Линейная функция и системы · 15 задач</option>
+              <option value="A7-09">Алгебраические дроби · 15 задач</option>
+            </optgroup>
           </select>
         </div>
       </div>
@@ -160,9 +194,11 @@
     </div>
   </div>
 
-  <script src="config.js?v=20261119.3"></script>
-  <script src="theory.js?v=20261119.3"></script>
-  <script src="tasks.js?v=20261119.3"></script>
-  <script src="script.js?v=20261119.3"></script>
+  <script src="config.js?v=20261119.4"></script>
+  <script src="theory.js?v=20261119.4"></script>
+  <script src="tasks.js?v=20261119.4"></script>
+  <script src="extra_tasks.js?v=20261119.4"></script>
+  <script src="tasks7_algebra.js?v=20261119.5"></script>
+  <script src="script.js?v=20261119.5"></script>
 </body>
 </html>

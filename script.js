@@ -26,55 +26,192 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
 /* ============================================================
- * ФОРМАТИРОВАНИЕ ВЕРТИКАЛЬНЫХ ДРОБЕЙ (МАТЕМАТИЧЕСКАЯ ЧЕРТА)
+ * ЕДИНЫЙ РЕНДЕР ФОРМУЛ ЧЕРЕЗ MATHJAX 3 С ТЕКСТОВЫМ FALLBACK
  * ============================================================ */
+function escapeMathHtml(value) {
+  return String(value).replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[ch]);
+}
+
+function readableMath(tex) {
+  return String(tex)
+    .replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, "$1/$2")
+    .replace(/\\sqrt\s*\{([^{}]+)\}/g, "√($1)")
+    .replace(/\\cdot/g, "·").replace(/\\times/g, "×").replace(/\\div/g, "÷")
+    .replace(/\\leq/g, "≤").replace(/\\geq/g, "≥").replace(/\\ne/g, "≠")
+    .replace(/\\left|\\right/g, "").replace(/\\[,; ]/g, " ")
+    .replace(/\^\{([^{}]+)\}/g, "^($1)")
+    .replace(/[{}]/g, "").replace(/\\/g, "").trim();
+}
+
+/** Normalize keyboard-era algebra notation and ratios before MathJax typesets a run. */
+function texifyExpression(expression) {
+  let tex = String(expression).replace(/[−–—]/g, "-").replace(/\*\*/g, "^");
+  tex = tex.replace(/\\sqrt\s*\(([^()]+)\)/g, "\\sqrt{$1}")
+    .replace(/√\s*\(([^()]+)\)/g, "\\sqrt{$1}")
+    .replace(/√\s*([A-Za-z0-9]+)/g, "\\sqrt{$1}");
+
+  tex = tex.replace(/\(([^()]+)\)\s*\/\s*\(([^()]+)\)/g,
+    (_, numerator, denominator) => `\\frac{${texifyExpression(numerator)}}{${texifyExpression(denominator)}}`)
+    .replace(/\(([^()]+)\)\s*\/\s*([A-Za-z0-9]+)/g,
+      (_, numerator, denominator) => `\\frac{${texifyExpression(numerator)}}{${denominator}}`);
+
+  // Algebraic ratios, including monomial numerators and denominators such as 6x^2/9x.
+  const operand = String.raw`(?:\\sqrt\{[^{}]*\}|\([^()]*\)|[+-]?(?:(?:\d+(?:[.,]\d+)?)?[A-Za-z](?:\^\{[^{}]+\}|\^-?\d+)?(?:[A-Za-z](?:\^\{[^{}]+\}|\^-?\d+)?)*|\d+(?:[.,]\d+)?))`;
+  const ratio = new RegExp(`(?<![\\p{L}\\p{N}])(${operand})\\s*/\\s*(${operand})(?![\\p{L}\\p{N}])`, "gu");
+  tex = tex.replace(ratio, (_, numerator, denominator) => `\\frac{${numerator}}{${denominator}}`);
+
+  return tex.replace(/[×*·]/g, "\\cdot ").replace(/÷/g, "\\div ")
+    .replace(/(\d),(\d)/g, "$1{,}")
+    .replace(/≤/g, "\\leq ").replace(/≥/g, "\\geq ").replace(/≠/g, "\\ne ");
+}
+
+/** Shared legacy-power normalization for rendering and exact symbolic-answer comparison. */
+function normalizeAlgebraNotation(value) {
+  const superscriptDigits = { "⁰":"0", "¹":"1", "²":"2", "³":"3", "⁴":"4", "⁵":"5", "⁶":"6", "⁷":"7", "⁸":"8", "⁹":"9", "⁺":"+", "⁻":"-" };
+  return String(value)
+    .replace(/<sup\b[^>]*>([\s\S]*?)<\/sup>/gi, "^{$1}")
+    .replace(/\*\*/g, "^")
+    .replace(/([A-Za-z0-9)])([⁺⁻⁰¹²³⁴⁵⁶⁷⁸⁹]+)/g, (_, base, exp) => `${base}^{${exp.replace(/[⁺⁻⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (ch) => superscriptDigits[ch])}}`)
+    .replace(/\(([^()]+)\)\s*([23])(?=[\s+\-*/=),.]|$)/g, "($1)^{$2}")
+    .replace(/([A-Za-z])([23])(?=[A-Za-z]|[\s+\-*/=),.]|$)/g, "$1^$2")
+    .replace(/\^\?/g, "^{?}")
+    .replace(/\^\(([^()]+)\)/g, "^{$1}")
+    .replace(/√\s*\(([^()]+)\)/g, "\\sqrt{$1}")
+    .replace(/√\s*([A-Za-z0-9]+)/g, "\\sqrt{$1}");
+}
 
 function formatMath(text) {
-  if (!text || typeof text !== "string") return text;
+  if (text == null || typeof text !== "string" || !text) return text;
 
-  // Защита URL-адресов от замены слэшей
-  const urls = [];
-  text = text.replace(/https?:\/\/[^\s"'<>]+/g, (m) => {
-    urls.push(m);
-    return `___URL_${urls.length - 1}___`;
-  });
+  // Normalize legacy exponents and roots before converting formula runs.
+  text = normalizeAlgebraNotation(text);
 
-  // 1. Дроби в скобках: (expr) / (expr) или (expr) / num
-  text = text.replace(
-    /\(([^)]+)\)\s*\/\s*\(([^)]+)\)/g,
-    `<span class="frac"><span class="num">$1</span><span class="den">$2</span></span>`
-  );
-  text = text.replace(
-    /\(([^)]+)\)\s*\/\s*([a-zA-Zа-яА-Я0-9]+)/g,
-    `<span class="frac"><span class="num">$1</span><span class="den">$2</span></span>`
-  );
-  text = text.replace(
-    /(?<![<a-zA-Z0-9\/:\\])([a-zA-Zа-яА-Я0-9]+)\s*\/\s*\(([^)]+)\)/g,
-    `<span class="frac"><span class="num">$1</span><span class="den">$2</span></span>`
-  );
+  // Leave trusted inline HTML (such as bold theory labels) outside the math parser.
+  const tags = text.split(/(<[^>]*>)/g);
+  return tags.map((part) => {
+    if (part.startsWith("<") && part.endsWith(">")) return part;
 
-  // 2. Смешанные числа: e.g. "3 5/6", "-2 1/4"
-  text = text.replace(
-    /(?<![<a-zA-Z0-9\/:\\])([-−]?\d+)\s+(\d+)\s*\/\s*(\d+)(?![a-zA-Z0-9\/>])/g,
-    `<span class="mixed-num">$1<span class="frac"><span class="num">$2</span><span class="den">$3</span></span></span>`
-  );
+    // URLs are not algebraic ratios.
+    const urls = [];
+    let chunk = part.replace(/https?:\/\/[^\s"'<>]+/g, (url) => {
+      const marker = String.fromCharCode(0xF000 + urls.length);
+      urls.push(url);
+      return marker;
+    });
+    const mathNodes = [];
+    const slot = (tex, fallback) => {
+      const index = mathNodes.length;
+      mathNodes.push(`<span class="math-render"><span class="math-fallback">${escapeMathHtml(fallback)}</span><span class="math-tex">\\(${escapeMathHtml(tex)}\\)</span></span>`);
+      return String.fromCharCode(0xE000 + index);
+    };
 
-  // 3. Отрицательные простые дроби: e.g. "-3/4", "−5/8"
-  text = text.replace(
-    /(?<![<a-zA-Z0-9\/:\\])[-−]\s*([a-zA-Zа-яА-Я0-9]+)\s*\/\s*([a-zA-Zа-яА-Я0-9]+)(?![a-zA-Z0-9\/>])/g,
-    `<span class="neg-frac"><span class="frac"><span class="num">$1</span><span class="den">$2</span></span></span>`
-  );
+    // Explicit LaTeX blocks remain a single formula and are normalized uniformly.
+    chunk = chunk.replace(/\\\(([\s\S]+?)\\\)/g,
+      (whole, tex) => slot(texifyExpression(tex), readableMath(tex)));
 
-  // 4. Обычные простые дроби: e.g. "3/4", "19/24", "x/12", "7 / 5"
-  text = text.replace(
-    /(?<![<a-zA-Z0-9\/:\\])([a-zA-Zа-яА-Я0-9]+)\s*\/\s*([a-zA-Zа-яА-Я0-9]+)(?![a-zA-Z0-9\/>])/g,
-    `<span class="frac"><span class="num">$1</span><span class="den">$2</span></span>`
-  );
+    // Mixed numbers must be processed before the general expression scanner.
+    chunk = chunk.replace(/[⁄／]/g, "/");
+    chunk = chunk.replace(/(?<![A-Za-z0-9])([−-]?\d+)\s+(\d+)\s*\/\s*(\d+)(?![A-Za-z0-9])/g,
+      (whole, sign, numerator, denominator) => {
+        const normalized = sign.replace(/−/g, "-");
+        const minus = normalized.startsWith("-") ? "-" : "";
+        return slot(`${minus}${Math.abs(Number(normalized))}\\,\\frac{${numerator}}{${denominator}}`, whole);
+      });
 
-  // Восстановление URL-адресов
-  text = text.replace(/___URL_(\d+)___/g, (_, i) => urls[i]);
+    // Implicit products (2(a+b), x(x+1), (a+b)(a-b)) stay one formula unit.
+    const implicitProduct = /(?<![A-Za-z0-9])([+-]?(?:(?:\d+)?[A-Za-z](?:\^\{[^{}]+\}|\^-?\d+)?(?:[A-Za-z](?:\^\{[^{}]+\}|\^-?\d+)?)*|\d+))((?:\([^()]+\))+)(?![A-Za-z0-9])/g;
+    chunk = chunk.replace(implicitProduct, (whole, left, right) => {
+      const tex = texifyExpression(`${left}${right}`);
+      return slot(tex, whole);
+    });
+    const adjacentBinomials = /(?<![A-Za-z0-9])(\([^()]+\))(\([^()]+\))(?![A-Za-z0-9])/g;
+    chunk = chunk.replace(adjacentBinomials, (whole) => slot(texifyExpression(whole), whole));
 
-  return text;
+    // Keep a powered parenthesized expression intact, rather than typesetting its interior first.
+    chunk = chunk.replace(/(?<![A-Za-z0-9])\(([^()]+)\)\^((?:\{[^{}]+\})|-?\d+)(?![A-Za-z0-9])/g,
+      (whole, base, exponent) => {
+        const tex = texifyExpression(`(${base})^${exponent}`);
+        return slot(tex, readableMath(tex));
+      });
+
+    // Wrap whole algebraic sequences together: powers, polynomials, products, ratios, roots.
+    const atom = String.raw`(?:\\frac\{[^{}]*\}\{[^{}]*\}|\\sqrt\{[^{}]*\}|\|[^|]+\||\([^()]*\)(?:\^\{[^{}]+\}|\^-?[A-Za-z0-9]+)?|(?:[+-]?(?:\d+(?:[.,]\d+)?)?)(?:[A-Za-z](?:\^\{[^{}]+\}|\^-?[A-Za-z0-9]+)?)+|[+-]?\d+(?:[.,]\d+)?(?:°|%)?)`;
+    const operator = String.raw`(?:[+\-−=×*·/:<>≤≥])`;
+    const sequence = new RegExp(`(?<![\\p{L}\\p{N}({])(${atom}(?:\\s*${operator}\\s*${atom})+)(?![\\p{L}\\p{N}])`, "gu");
+    chunk = chunk.replace(sequence, (whole, expression) => {
+      const tex = texifyExpression(expression);
+      return slot(tex, readableMath(tex));
+    });
+
+    // Unicode fraction glyphs are normalized too, with a readable non-MathJax fallback.
+    const unicodeFractions = { "½":"1/2", "⅓":"1/3", "⅔":"2/3", "¼":"1/4", "¾":"3/4", "⅕":"1/5", "⅖":"2/5", "⅗":"3/5", "⅘":"4/5", "⅙":"1/6", "⅚":"5/6", "⅛":"1/8", "⅜":"3/8", "⅝":"5/8", "⅞":"7/8" };
+    chunk = chunk.replace(/[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]/g, (glyph) => {
+      const [numerator, denominator] = unicodeFractions[glyph].split("/");
+      return slot(`\\frac{${numerator}}{${denominator}}`, unicodeFractions[glyph]);
+    });
+
+    // Bare TeX fractions and roots are wrapped before scanning their inner letters.
+    chunk = chunk.replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g,
+      (whole, numerator, denominator) => slot(`\\frac{${numerator}}{${denominator}}`, `${numerator}/${denominator}`));
+    chunk = chunk.replace(/\\sqrt\s*\{([^{}]+)\}/g,
+      (whole, radicand) => slot(`\\sqrt{${radicand}}`, `√(${radicand})`));
+
+    // Standalone powers and absolute values must be protected before monomial matching.
+    chunk = chunk.replace(/(?<![A-Za-z0-9])((?:\([^()]+\)|[A-Za-z0-9]+))\^((?:\{[^{}]+\})|-?\d+)(?![A-Za-z0-9])/g,
+      (whole, base, exponent) => {
+        const tex = texifyExpression(`${base}^${exponent}`);
+        return slot(tex, readableMath(tex));
+      });
+    chunk = chunk.replace(/(?<![A-Za-z0-9])\|([^|]+)\|/g,
+      (whole, inner) => slot(`\\left|${texifyExpression(inner)}\\right|`, whole));
+
+    // Standalone monomials (2a, 3ab, -5x^2y) use the same MathJax path.
+    const monomial = /(?<![A-Za-z0-9])([+-]?(?:(?:\d+(?:[.,]\d+)?)?[A-Za-z](?:\^\{[^{}]+\}|\^-?[A-Za-z0-9]+)?(?:[A-Za-z](?:\^\{[^{}]+\}|\^-?[A-Za-z0-9]+)?)*))(?![A-Za-z0-9])/g;
+    chunk = chunk.replace(monomial, (whole, expression) => {
+      const tex = texifyExpression(expression);
+      return slot(tex, readableMath(tex));
+    });
+
+    // A final legacy pass for any isolated slash fraction or radical missed by the scanner.
+    chunk = chunk.replace(/(?<![A-Za-z0-9])([−-]?\d+|[A-Za-z])\s*\/\s*(\d+|[A-Za-z])(?![A-Za-z0-9])/g,
+      (whole, numerator, denominator) => {
+        const tex = texifyExpression(`${numerator}/${denominator}`);
+        return slot(tex, whole);
+      });
+    chunk = chunk.replace(/\\sqrt\s*\{([^{}]+)\}/g,
+      (whole, radicand) => slot(`\\sqrt{${radicand}}`, `√(${radicand})`));
+
+    chunk = chunk.replace(/[\uE000-\uEFFF]/g, (marker) => mathNodes[marker.charCodeAt(0) - 0xE000]);
+    chunk = chunk.replace(/[\uF000-\uF0FF]/g, (marker) => urls[marker.charCodeAt(0) - 0xF000]);
+    return chunk;
+  }).join("");
+}
+
+/** Build a 2–5 line accordion from exercise hints plus the lesson's theory reference. */
+function getQuestionTheory(q) {
+  if (Array.isArray(q.theory) && q.theory.length) return q.theory.slice(0, 5);
+  const lines = [...(q.hints || [])];
+  const lessonNumber = Number(String(appState.variantKey).split("-").pop());
+  const lessonRules = THEORY_DATA[lessonNumber]?.rules || [];
+  for (const rule of lessonRules) {
+    if (lines.length >= 3) break;
+    if (!lines.includes(rule)) lines.push(rule);
+  }
+  if (lines.length < 2 && q.sub) lines.push(q.sub);
+  return lines.slice(0, 5);
+}
+
+/** Typeset only the newly inserted subtree; fallback text stays visible on CDN failure. */
+function typesetMath(root) {
+  const mathJax = window.MathJax;
+  if (!root || !mathJax || typeof mathJax.typesetPromise !== "function") return;
+  mathJax.typesetPromise([root]).then(() => {
+    root.querySelectorAll(".math-render").forEach((node) => {
+      if (node.querySelector("mjx-container")) node.classList.add("is-rendered");
+    });
+  }).catch((error) => console.warn("MathJax render failed; showing plain-text formulas.", error));
 }
 
 /* ============================================================
@@ -84,17 +221,30 @@ function formatMath(text) {
 // Очистка и канонизация строки ответа
 function canon(val) {
   if (val == null) return "";
-  let s = String(val).trim().toLowerCase();
-  s = s.replace(/[−–—]/g, "-").replace(/°/g, "");
-  // Замена знаков умножения; x в строковых ответах остаётся математическим знаком.
-  s = s.replace(/[×*х∙⋅]/g, "·");
-  s = s.replace(/\s+/g, " ");
+  let s = normalizeAlgebraNotation(String(val).trim().toLowerCase());
+  s = s.replace(/\\[()]/g, "")
+    .replace(/\\(?:dfrac|tfrac|frac)\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, (_, numerator, denominator) => {
+      const needsGrouping = (part) => /[+]/.test(part) || /-(?!^)/.test(part);
+      const top = needsGrouping(numerator) ? `(${numerator})` : numerator;
+      const bottom = needsGrouping(denominator) ? `(${denominator})` : denominator;
+      return `${top}/${bottom}`;
+    })
+    .replace(/\^\{([A-Za-z0-9+-]+)\}/g, "^$1")
+    .replace(/\\left|\\right/g, "")
+    .replace(/\\cdot|\\times/g, "·").replace(/\\div/g, ":")
+    .replace(/[−–—]/g, "-").replace(/°/g, "")
+    .replace(/[×*х∙⋅]/g, "·")
+    .replace(/\s+/g, " ");
   return s;
 }
 
 /** Convert an integer, decimal, common fraction, or mixed number to Number. */
 function parseMathNumber(value) {
-  const s = String(value ?? "").trim().replace(/[−–—]/g, "-").replace(/,/g, ".");
+  const s = String(value ?? "").trim()
+    .replace(/\[()]/g, "")
+    .replace(/\\(?:dfrac|tfrac|frac)\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, "$1/$2")
+    .replace(/[{}]/g, "")
+    .replace(/[−–—]/g, "-").replace(/,/g, ".");
   const mixed = s.match(/^([+-]?\d+)\s+(\d+)\s*\/\s*(\d+)$/);
   if (mixed) {
     const whole = Number(mixed[1]), numerator = Number(mixed[2]), denominator = Number(mixed[3]);
@@ -233,6 +383,7 @@ function loadVariant(vKey) {
   const slidesContainer = $("#slidesDeck");
   if (!slidesContainer) return;
 
+  if (window.MathJax?.typesetClear) window.MathJax.typesetClear([slidesContainer]);
   slidesContainer.innerHTML = "";
   const slides = [];
 
@@ -244,7 +395,7 @@ function loadVariant(vKey) {
 
     let html = `
       <div class="margin-line"></div>
-      <div class="crumb">${formatMath(q.crumb || "Задание " + q.num)}</div>
+      <div class="crumb">${formatMath(q.crumb || "Задание " + q.num)}${q.level ? ` · ${q.level}` : ""}</div>
       <h2 class="task-heading">
         <span class="task-num-badge">${q.num}</span>
         ${formatMath(q.title)}
@@ -285,17 +436,25 @@ function loadVariant(vKey) {
       html += `</div><div class="answer-feedback" aria-live="polite"></div></div>`;
     });
 
-    if (q.hints && q.hints.length) {
+    // Compact, collapsed theory is available beside every exercise.
+    const theoryLines = getQuestionTheory(q);
+    if (theoryLines.length) {
       html += `
-        <div class="hint-box">
-          <span>💡</span>
-          <div>${q.hints.map(formatMath).join("<br>")}</div>
-        </div>
+        <details class="hint-box theory-accordion">
+          <summary>📘 Краткая теория</summary>
+          <div class="theory-accordion-content">${theoryLines.map(formatMath).join("<br>")}</div>
+          ${q.theory && q.hints?.length ? `<div class="theory-sample"><b>Короткий разбор:</b><br>${q.hints.map(formatMath).join("<br>")}</div>` : ""}
+        </details>
       `;
     }
 
     html += `</div>`;
     slide.innerHTML = html;
+    slide.querySelectorAll(".theory-accordion").forEach((accordion) => {
+      accordion.addEventListener("toggle", () => {
+        if (accordion.open) typesetMath(accordion);
+      });
+    });
     slidesContainer.appendChild(slide);
     slides.push(slide);
   });
@@ -344,6 +503,7 @@ function loadVariant(vKey) {
 
   appState.slides = slides;
   updateNav();
+  typesetMath(slidesContainer);
 }
 
 /* ============================================================
@@ -585,6 +745,7 @@ function calculateResults() {
   // Рендеринг таблицы разбора
   const revCont = $("#reviewContainer");
   if (revCont) {
+    if (window.MathJax?.typesetClear) window.MathJax.typesetClear([revCont]);
     let tHtml = `
       <table class="review-table">
         <thead>
@@ -617,6 +778,7 @@ function calculateResults() {
 
     tHtml += `</tbody></table>`;
     revCont.innerHTML = tHtml;
+    typesetMath(revCont);
   }
   renderMath7Stats();
 }
@@ -780,8 +942,10 @@ function openTheoryModal(lessonNum) {
     `;
   }
 
+  if (window.MathJax?.typesetClear) window.MathJax.typesetClear([content]);
   content.innerHTML = html;
   modal.classList.add("open");
+  typesetMath(content);
 }
 
 function closeTheoryModal() {
