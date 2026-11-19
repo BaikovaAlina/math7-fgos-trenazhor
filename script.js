@@ -19,7 +19,6 @@ const appState = {
   currentSlide: 0,
   startTime: null,
   results: null,
-  telegramAttempted: false,
 };
 
 // Вспомогательные функции селекторов
@@ -223,7 +222,6 @@ function loadVariant(vKey) {
   appState.currentSlide = 0;
   appState.startTime = new Date();
   appState.results = null;
-  appState.telegramAttempted = false;
 
   // Обновление заголовков
   const titleEl = $("#trainerTitle");
@@ -325,7 +323,7 @@ function loadVariant(vKey) {
     <div class="send-box">
       <h3>📩 Отправить результат учителю</h3>
       <p style="font-size:14.5px; color:#52441a;">
-        Отчёт автоматически отправляется учителю при завершении работы. Повторная отправка доступна кнопкой ниже.
+        Нажмите кнопку ниже — готовый отчёт отправится учителю. Chat ID ученику вводить не нужно.
       </p>
       <div class="send-inputs">
         <button class="btn-send-tg" id="btnSendTelegram">Отправить результат в Telegram ✈️</button>
@@ -386,14 +384,8 @@ function goToSlide(index) {
   });
   appState.currentSlide = index;
 
-  // При первом переходе к итогам оцениваем работу и автоматически отправляем отчёт.
-  if (index === appState.slides.length - 1) {
-    calculateResults();
-    if (!appState.telegramAttempted) {
-      appState.telegramAttempted = true;
-      void sendToTelegram({ automatic: true });
-    }
-  }
+  // При переходе к итогам считаем результат; отправка выполняется отдельной кнопкой.
+  if (index === appState.slides.length - 1) calculateResults();
 
   updateNav();
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -664,7 +656,7 @@ function buildTelegramMessage(results) {
 }
 
 /** Send the completed work directly to Telegram Bot API from the browser. */
-async function sendToTelegram({ automatic = false } = {}) {
+async function sendToTelegram() {
   const botToken = getTelegramBotToken();
   const chatId = getTelegramChatId();
   if (!botToken || !chatId) {
@@ -673,7 +665,7 @@ async function sendToTelegram({ automatic = false } = {}) {
     return;
   }
   if (!appState.results) calculateResults();
-  showStatusMsg("wait", automatic ? "Автоматически отправляю результат учителю... ⏳" : "Отправляю отчёт учителю в Telegram... ⏳");
+  showStatusMsg("wait", "Отправляю отчёт учителю в Telegram... ⏳");
   try {
     const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: "POST",
@@ -682,7 +674,7 @@ async function sendToTelegram({ automatic = false } = {}) {
     });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.description || `HTTP ${response.status}`);
-    showStatusMsg("ok", "✅ Результат автоматически отправлен учителю в Telegram!");
+    showStatusMsg("ok", "✅ Результат отправлен учителю в Telegram!");
   } catch (error) {
     console.error("Telegram send error:", error);
     showStatusMsg("err", `❌ Не удалось отправить отчёт: ${error.message}. Ученику вводить Chat ID не нужно.`);
