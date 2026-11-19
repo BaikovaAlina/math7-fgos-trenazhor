@@ -53,7 +53,7 @@ math7-fgos-trenazhor/
    - `TELEGRAM_BOT_TOKEN` — токен бота, перевыпущенный через `@BotFather`;
    - `TELEGRAM_CHAT_ID` — Chat ID учителя, которому бот присылает результаты.
 3. В **Settings → Variables → Actions** добавьте `TELEGRAM_RELAY_URL` — URL вашего Worker, например `https://math7-telegram-relay.<ваш-subdomain>.workers.dev`. URL узнаётся после первого развёртывания; первый раз можно локально развернуть `wrangler deploy`, получить URL в выводе, сохранить его как Variable и запустить GitHub Pages workflow повторно.
-4. В `wrangler.toml` проверьте `ALLOWED_ORIGIN`: это origin опубликованного Pages сайта без пути, например `https://BaikovaAlina.github.io`.
+4. В `wrangler.toml` проверьте `ALLOWED_ORIGIN`: это origin опубликованного Pages сайта без пути, например `https://baikovaalina.github.io`.
 5. Выполните локально `npx wrangler login`, затем `npx wrangler deploy` из корня репозитория. Для автоматизации можно запустить workflow **Actions → Deploy Telegram relay → Run workflow** после добавления четырёх Secrets. Workflow публикует Worker и устанавливает Telegram Secrets в него.
 6. В Pages откройте ⚙️ настройки, введите тот же Chat ID, который сохранён в `TELEGRAM_CHAT_ID` Worker, и нажмите «Проверить связь». Worker принимает только запросы с разрешённого Pages origin, ограничивает частоту отправки и использует фиксированного получателя.
 7. Если впервые собираете и URL Worker ещё неизвестен: сначала разверните relay, добавьте URL в GitHub Variable, затем повторно запустите Pages workflow.
