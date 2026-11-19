@@ -36,13 +36,96 @@ function escapeMathHtml(value) {
 
 function readableMath(tex) {
   return String(tex)
-    .replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, "$1/$2")
+    .replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, "$1 over $2")
     .replace(/\\sqrt\s*\{([^{}]+)\}/g, "√($1)")
     .replace(/\\cdot/g, "·").replace(/\\times/g, "×").replace(/\\div/g, "÷")
     .replace(/\\leq/g, "≤").replace(/\\geq/g, "≥").replace(/\\ne/g, "≠")
     .replace(/\\left|\\right/g, "").replace(/\\[,; ]/g, " ")
     .replace(/\^\{([^{}]+)\}/g, "^($1)")
     .replace(/[{}]/g, "").replace(/\\/g, "").trim();
+}
+
+/** Build a slash-free, safely escaped fallback while MathJax is loading or unavailable. */
+function readTexArgument(source, start) {
+  let index = start;
+  while (/\s/.test(source[index] || "")) index++;
+  if (source[index] === "{") {
+    let depth = 1;
+    let cursor = index + 1;
+    for (; cursor < source.length; cursor++) {
+      if (source[cursor] === "\\") { cursor++; continue; }
+      if (source[cursor] === "{") depth++;
+      else if (source[cursor] === "}" && --depth === 0) {
+        return { value: source.slice(index + 1, cursor), end: cursor + 1 };
+      }
+    }
+    return { value: source.slice(index + 1), end: source.length };
+  }
+  if (source[index] === "\\") {
+    const command = source.slice(index + 1).match(/^[A-Za-z]+/);
+    if (command) return { value: `\\${command[0]}`, end: index + command[0].length + 1 };
+  }
+  return { value: source[index] || "", end: Math.min(index + 1, source.length) };
+}
+
+function fallbackMathHtml(tex) {
+  const symbols = {
+    cdot: "·", times: "×", div: "÷", leq: "≤", geq: "≥", ne: "≠", neq: "≠",
+    pm: "±", mp: "∓", infty: "∞", pi: "π", alpha: "α", beta: "β", gamma: "γ",
+    theta: "θ", angle: "∠", approx: "≈", percent: "%",
+  };
+  function render(source) {
+    let html = "";
+    for (let i = 0; i < source.length;) {
+      if (source[i] === "\\") {
+        const commandMatch = source.slice(i + 1).match(/^[A-Za-z]+/);
+        if (commandMatch) {
+          const command = commandMatch[0];
+          const after = i + command.length + 1;
+          if (command === "frac" || command === "dfrac" || command === "tfrac") {
+            const numerator = readTexArgument(source, after);
+            const denominator = readTexArgument(source, numerator.end);
+            html += `<span class="math-fallback-fraction"><span class="math-fallback-numerator">${render(numerator.value)}</span><span class="math-fallback-denominator">${render(denominator.value)}</span></span>`;
+            i = denominator.end;
+            continue;
+          }
+          if (command === "sqrt") {
+            const radicand = readTexArgument(source, after);
+            html += `√(${render(radicand.value)})`;
+            i = radicand.end;
+            continue;
+          }
+          if (command === "left" || command === "right") { i = after; continue; }
+          if (command === "text" || command === "mathrm") {
+            const argument = readTexArgument(source, after);
+            html += render(argument.value);
+            i = argument.end;
+            continue;
+          }
+          html += escapeMathHtml(symbols[command] || command);
+          i = after;
+          continue;
+        }
+        const escaped = source[i + 1] || "";
+        html += escaped === "," || escaped === ";" ? " " : escapeMathHtml(escaped);
+        i += 2;
+        continue;
+      }
+      if (source[i] === "^" || source[i] === "_") {
+        const argument = readTexArgument(source, i + 1);
+        const tag = source[i] === "^" ? "sup" : "sub";
+        html += `<${tag}>${render(argument.value)}</${tag}>`;
+        i = argument.end;
+        continue;
+      }
+      if (source[i] === "{") { i++; continue; }
+      if (source[i] === "}") { i++; continue; }
+      const ch = source[i++];
+      html += escapeMathHtml(ch === "-" ? "−" : ch);
+    }
+    return html;
+  }
+  return render(String(tex));
 }
 
 /** Normalize keyboard-era algebra notation and ratios before MathJax typesets a run. */
@@ -63,7 +146,7 @@ function texifyExpression(expression) {
   tex = tex.replace(ratio, (_, numerator, denominator) => `\\frac{${numerator}}{${denominator}}`);
 
   return tex.replace(/[×*·]/g, "\\cdot ").replace(/÷/g, "\\div ")
-    .replace(/(\d),(\d)/g, "$1{,}")
+    .replace(/(\d),(\d)/g, "$1{,}$2")
     .replace(/≤/g, "\\leq ").replace(/≥/g, "\\geq ").replace(/≠/g, "\\ne ");
 }
 
@@ -103,13 +186,43 @@ function formatMath(text) {
     const mathNodes = [];
     const slot = (tex, fallback) => {
       const index = mathNodes.length;
-      mathNodes.push(`<span class="math-render"><span class="math-fallback">${escapeMathHtml(fallback)}</span><span class="math-tex">\\(${escapeMathHtml(tex)}\\)</span></span>`);
+      mathNodes.push(`<span class="math-render"><span class="math-fallback">${fallbackMathHtml(tex)}</span><span class="math-tex">\\(${escapeMathHtml(tex)}\\)</span></span>`);
       return String.fromCharCode(0xE000 + index);
     };
+    const containsSlot = (value) => /[\uE000-\uEFFF]/.test(value);
 
     // Explicit LaTeX blocks remain a single formula and are normalized uniformly.
     chunk = chunk.replace(/\\\(([\s\S]+?)\\\)/g,
       (whole, tex) => slot(texifyExpression(tex), readableMath(tex)));
+
+    // Keep mixed numerals in one MathJax node (e.g. −2\\frac{1}{3}).
+    chunk = chunk.replace(/(?<![A-Za-z0-9])([−-]?\d+)\\(?:dfrac|tfrac|frac)\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g,
+      (whole, integer, numerator, denominator) => slot(`${integer}\\frac{${numerator}}{${denominator}}`, whole));
+
+    // Protect complete TeX fractions and radicals before scanning their nested contents.
+    const texCommand = /\\(dfrac|tfrac|frac|sqrt)(?![A-Za-z])\s*/g;
+    let protectedTex = "";
+    let commandMatch;
+    let commandCursor = 0;
+    while ((commandMatch = texCommand.exec(chunk))) {
+      const command = commandMatch[1];
+      const first = readTexArgument(chunk, texCommand.lastIndex);
+      if (first.end <= texCommand.lastIndex) continue;
+      let last = first.end;
+      let tex;
+      if (command === "sqrt") {
+        tex = `\\sqrt{${first.value}}`;
+      } else {
+        const second = readTexArgument(chunk, first.end);
+        if (second.end <= first.end) continue;
+        last = second.end;
+        tex = `\\frac{${first.value}}{${second.value}}`;
+      }
+      protectedTex += chunk.slice(commandCursor, commandMatch.index) + slot(tex, readableMath(tex));
+      commandCursor = last;
+      texCommand.lastIndex = last;
+    }
+    if (commandCursor) chunk = protectedTex + chunk.slice(commandCursor);
 
     // Mixed numbers must be processed before the general expression scanner.
     chunk = chunk.replace(/[⁄／]/g, "/");
@@ -117,21 +230,23 @@ function formatMath(text) {
       (whole, sign, numerator, denominator) => {
         const normalized = sign.replace(/−/g, "-");
         const minus = normalized.startsWith("-") ? "-" : "";
-        return slot(`${minus}${Math.abs(Number(normalized))}\\,\\frac{${numerator}}{${denominator}}`, whole);
+        return slot(`${minus}${Math.abs(Number(normalized))}\\frac{${numerator}}{${denominator}}`, whole);
       });
 
     // Implicit products (2(a+b), x(x+1), (a+b)(a-b)) stay one formula unit.
     const implicitProduct = /(?<![A-Za-z0-9])([+-]?(?:(?:\d+)?[A-Za-z](?:\^\{[^{}]+\}|\^-?\d+)?(?:[A-Za-z](?:\^\{[^{}]+\}|\^-?\d+)?)*|\d+))((?:\([^()]+\))+)(?![A-Za-z0-9])/g;
     chunk = chunk.replace(implicitProduct, (whole, left, right) => {
+      if (containsSlot(whole)) return whole;
       const tex = texifyExpression(`${left}${right}`);
       return slot(tex, whole);
     });
     const adjacentBinomials = /(?<![A-Za-z0-9])(\([^()]+\))(\([^()]+\))(?![A-Za-z0-9])/g;
-    chunk = chunk.replace(adjacentBinomials, (whole) => slot(texifyExpression(whole), whole));
+    chunk = chunk.replace(adjacentBinomials, (whole) => containsSlot(whole) ? whole : slot(texifyExpression(whole), whole));
 
     // Keep a powered parenthesized expression intact, rather than typesetting its interior first.
     chunk = chunk.replace(/(?<![A-Za-z0-9])\(([^()]+)\)\^((?:\{[^{}]+\})|-?\d+)(?![A-Za-z0-9])/g,
       (whole, base, exponent) => {
+        if (containsSlot(whole)) return whole;
         const tex = texifyExpression(`(${base})^${exponent}`);
         return slot(tex, readableMath(tex));
       });
@@ -141,6 +256,7 @@ function formatMath(text) {
     const operator = String.raw`(?:[+\-−=×*·/:<>≤≥])`;
     const sequence = new RegExp(`(?<![\\p{L}\\p{N}({])(${atom}(?:\\s*${operator}\\s*${atom})+)(?![\\p{L}\\p{N}])`, "gu");
     chunk = chunk.replace(sequence, (whole, expression) => {
+      if (containsSlot(expression)) return whole;
       const tex = texifyExpression(expression);
       return slot(tex, readableMath(tex));
     });
@@ -152,19 +268,13 @@ function formatMath(text) {
       return slot(`\\frac{${numerator}}{${denominator}}`, unicodeFractions[glyph]);
     });
 
-    // Bare TeX fractions and roots are wrapped before scanning their inner letters.
-    chunk = chunk.replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g,
-      (whole, numerator, denominator) => slot(`\\frac{${numerator}}{${denominator}}`, `${numerator}/${denominator}`));
-    chunk = chunk.replace(/\\sqrt\s*\{([^{}]+)\}/g,
-      (whole, radicand) => slot(`\\sqrt{${radicand}}`, `√(${radicand})`));
-
     // Standalone powers and absolute values must be protected before monomial matching.
     chunk = chunk.replace(/(?<![A-Za-z0-9])((?:\([^()]+\)|[A-Za-z0-9]+))\^((?:\{[^{}]+\})|-?\d+)(?![A-Za-z0-9])/g,
       (whole, base, exponent) => {
         const tex = texifyExpression(`${base}^${exponent}`);
         return slot(tex, readableMath(tex));
       });
-    chunk = chunk.replace(/(?<![A-Za-z0-9])\|([^|]+)\|/g,
+    chunk = chunk.replace(/(?<![A-Za-z0-9])\|([^|\uE000-\uEFFF]+)\|/g,
       (whole, inner) => slot(`\\left|${texifyExpression(inner)}\\right|`, whole));
 
     // Standalone monomials (2a, 3ab, -5x^2y) use the same MathJax path.
@@ -221,7 +331,8 @@ function typesetMath(root) {
 // Очистка и канонизация строки ответа
 function canon(val) {
   if (val == null) return "";
-  let s = normalizeAlgebraNotation(String(val).trim().toLowerCase());
+  const raw = String(val).trim().toLowerCase().replace(/sqrt\s*\(?\s*([a-z0-9]+)\s*\)?/g, "\\sqrt{$1}");
+  let s = normalizeAlgebraNotation(raw);
   s = s.replace(/\\[()]/g, "")
     .replace(/\\(?:dfrac|tfrac|frac)\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, (_, numerator, denominator) => {
       const needsGrouping = (part) => /[+]/.test(part) || /-(?!^)/.test(part);
@@ -231,6 +342,8 @@ function canon(val) {
     })
     .replace(/\^\{([A-Za-z0-9+-]+)\}/g, "^$1")
     .replace(/\\left|\\right/g, "")
+    .replace(/\\sqrt\s*\{([^{}]+)\}/g, "sqrt($1)")
+    .replace(/sqrt\s*\(([^()]*)\)/gi, "sqrt$1")
     .replace(/\\cdot|\\times/g, "·").replace(/\\div/g, ":")
     .replace(/[−–—]/g, "-").replace(/°/g, "")
     .replace(/[×*х∙⋅]/g, "·")
@@ -240,11 +353,17 @@ function canon(val) {
 
 /** Convert an integer, decimal, common fraction, or mixed number to Number. */
 function parseMathNumber(value) {
-  const s = String(value ?? "").trim()
-    .replace(/\[()]/g, "")
+  let s = String(value ?? "").trim().replace(/[−–—]/g, "-");
+  s = s.replace(/([+-]?\d+)(?:\\[,; ]*)?\\(?:dfrac|tfrac|frac)\s*\{(\d+)\}\s*\{(\d+)\}/g,
+      (_, whole, numerator, denominator) => {
+        const sign = whole.startsWith("-") ? -1 : 1;
+        return String(sign * (Math.abs(Number(whole)) + Number(numerator) / Number(denominator)));
+      })
+    .replace(/\\[,; ]/g, " ")
+    .replace(/\\[()]/g, "")
     .replace(/\\(?:dfrac|tfrac|frac)\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, "$1/$2")
     .replace(/[{}]/g, "")
-    .replace(/[−–—]/g, "-").replace(/,/g, ".");
+    .replace(/,/g, ".");
   const mixed = s.match(/^([+-]?\d+)\s+(\d+)\s*\/\s*(\d+)$/);
   if (mixed) {
     const whole = Number(mixed[1]), numerator = Number(mixed[2]), denominator = Number(mixed[3]);
@@ -326,6 +445,10 @@ function checkAnswer(userVal, correctPattern, type) {
 
   return false;
 }
+
+// Public, read-only helpers for the optional offline practice/VPR page.
+window.Math7Answer = Object.freeze({ checkAnswer, parseMathNumber });
+window.Math7Format = formatMath;
 
 /* ============================================================
  * 2. ИНИЦИАЛИЗАЦИЯ И РЕНДЕРИНГ ТРЕНАЖЁРА
@@ -567,6 +690,7 @@ function checkCurrentSlide() {
 
     inp.classList.remove("correct", "incorrect");
     const feedback = inp.closest(".task-row")?.querySelector(".answer-feedback");
+    if (feedback && window.MathJax?.typesetClear) window.MathJax.typesetClear([feedback]);
     if (isOk) {
       inp.classList.add("correct");
       if (feedback) { feedback.className = "answer-feedback correct"; feedback.textContent = "✓ Верно"; }
@@ -576,6 +700,7 @@ function checkCurrentSlide() {
       if (feedback) {
         feedback.className = "answer-feedback incorrect";
         feedback.innerHTML = `✗ Неверно. Правильный ответ: ${formatMath(pat.split("|")[0])}`;
+        typesetMath(feedback);
       }
     }
   });

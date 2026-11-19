@@ -403,6 +403,20 @@ body {
   font-style: italic;
 }
 
+/* Ограничения ширины для внутреннего содержимого карточек: сохраняем сетку и визуальные токены. */
+.task-content,
+.task-row,
+.task-text,
+.task-expression {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.task-text,
+.task-row {
+  overflow-wrap: anywhere;
+}
+
 /* Список вопросов на слайде */
 .task-row {
   background: rgba(255, 255, 255, 0.65);
@@ -812,50 +826,98 @@ body {
 }
 
 /* ==================== АДАПТИВНОСТЬ ДЛЯ СМАРТФОНОВ ==================== */
-/* ==================== ВЕРТИКАЛЬНЫЕ МАТЕМАТИЧЕСКИЕ ДРОБИ ==================== */
-.frac {
+/* Единые формулы MathJax 3. Plain text remains visible if the CDN is unavailable. */
+.math-render {
+  display: inline-block;
+  position: relative;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.math-fallback {
+  display: inline-block;
+  white-space: normal;
+}
+
+/* CDN-independent fallback uses the same stacked fraction shape, without slash notation. */
+.math-fallback-fraction {
   display: inline-flex;
   flex-direction: column;
-  vertical-align: -0.6em;
-  text-align: center;
-  padding: 0 0.22em;
-  font-size: 0.95em;
+  align-items: center;
+  vertical-align: middle;
+  margin: 0 0.06em;
+  font-size: 0.9em;
   line-height: 1.05;
-  font-family: var(--font-hand), "Times New Roman", serif;
-  font-weight: bold;
 }
 
-.frac > .num {
+.math-fallback-numerator,
+.math-fallback-denominator {
   display: block;
-  padding: 0 0.15em 0.08em;
-  border-bottom: 2px solid currentColor;
+  padding: 0 0.12em;
+  white-space: nowrap;
 }
 
-.frac > .den {
+.math-fallback-denominator {
+  border-top: 1px solid currentColor;
+}
+
+.math-tex {
+  display: inline-block;
+  position: absolute;
+  inset: 0 auto auto 0;
+  max-width: 100%;
+  overflow-x: auto;
+  vertical-align: middle;
+  visibility: hidden;
+  white-space: nowrap;
+}
+
+.math-render.is-rendered .math-fallback {
+  display: none;
+}
+
+.math-render.is-rendered .math-tex {
+  position: static;
+  visibility: visible;
+  white-space: normal;
+  max-width: 100%;
+}
+
+.math-tex mjx-container {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  vertical-align: middle;
+  font-size: 1em;
+}
+
+.task-text,
+.task-expression,
+.theory-accordion-content {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Accordion reuses the existing sticky-note colors, border and typography. */
+.theory-accordion {
   display: block;
-  padding: 0.1em 0.15em 0;
 }
 
-.mixed-num {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25em;
-  font-size: 1.05em;
-  vertical-align: baseline;
-}
-
-.neg-frac {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.15em;
-  vertical-align: baseline;
-}
-
-.neg-frac::before {
-  content: "−";
-  font-size: 1.2em;
+.theory-accordion > summary {
+  cursor: pointer;
   font-weight: bold;
-  line-height: 1;
+  list-style-position: inside;
+}
+
+.theory-accordion-content {
+  margin-top: 7px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.theory-accordion .theory-sample {
+  margin-top: 10px;
 }
 
 @media (max-width: 640px) {

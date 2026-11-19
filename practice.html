@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#FBF7EC">
+  <title>Дополнительный банк и пробники ВПР · математика 7 класс</title>
+  <link rel="stylesheet" href="style.css?v=20261119.6">
+  <link rel="stylesheet" href="practice.css?v=20261119.1">
+</head>
+<body>
+  <div class="container practice-page">
+    <header class="site-header">
+      <div class="top-bar">
+        <a href="index.html">← Ко всем урокам</a>
+        <span class="practice-mode-badge" id="practiceModeBadge">Дополнительная практика</span>
+      </div>
+      <h1 class="main-title" id="practiceTitle">Дополнительный банк заданий</h1>
+      <p class="subtitle" id="practiceDescription">160 авторских заданий по алгебре, геометрии, вероятности и статистике. Работает локально, без аккаунта.</p>
+    </header>
+
+    <section class="practice-controls" aria-label="Настройки режима">
+      <div class="practice-control" id="bankControls">
+        <label for="themeSelect">Тема</label>
+        <select id="themeSelect" class="student-name-input"></select>
+        <label for="levelSelect">Уровень</label>
+        <select id="levelSelect" class="student-name-input">
+          <option value="all">Все уровни</option>
+          <option value="base">Базовый</option>
+          <option value="advanced">Углублённый</option>
+        </select>
+      </div>
+      <div class="practice-control" id="vprControls" hidden>
+        <label for="vprSelect">Пробник</label>
+        <select id="vprSelect" class="student-name-input"></select>
+      </div>
+      <div class="practice-timer" id="vprTimer" hidden aria-live="polite">90:00</div>
+    </section>
+
+    <div class="practice-notice" id="practiceNotice" role="status"></div>
+    <main id="practiceList" class="practice-list" aria-live="polite"></main>
+    <div class="practice-actions" id="practiceActions" hidden>
+      <button type="button" class="btn-send-tg" id="submitVpr">Завершить пробник и проверить</button>
+      <button type="button" class="btn-nav" id="restartVpr" hidden>Выбрать другой вариант</button>
+    </div>
+  </div>
+
+  <script src="script.js?v=20261119.6"></script>
+  <script src="expanded_bank.js?v=20261119.1"></script>
+  <script src="vpr_bank.js?v=20261119.1"></script>
+  <script src="practice_app.js?v=20261119.1"></script>
+</body>
+</html>
