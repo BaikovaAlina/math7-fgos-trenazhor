@@ -230,7 +230,7 @@ function formatMath(text) {
       (whole, sign, numerator, denominator) => {
         const normalized = sign.replace(/−/g, "-");
         const minus = normalized.startsWith("-") ? "-" : "";
-        return slot(`${minus}${Math.abs(Number(normalized))}\\frac{${numerator}}{${denominator}}`, whole);
+        return slot(`${minus}${Math.abs(Number(normalized))}\\,\\frac{${numerator}}{${denominator}}`, whole);
       });
 
     // Implicit products (2(a+b), x(x+1), (a+b)(a-b)) stay one formula unit.

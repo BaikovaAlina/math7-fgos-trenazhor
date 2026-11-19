@@ -42,7 +42,7 @@ const VPR_VARIANTS = [
     id: "VPR-03", mode: "vpr", vpr: true, title: "Пробник ВПР · вариант 3", durationMinutes: 90,
     instructions: "12 авторских заданий в формате тренировочной работы. После завершения откроются ключи, решения и критерии.",
     tasks: [
-      { id: "VPR-03-01", topic: "Числа и вычисления", level: "base", type: "short", prompt: "Вычислите: \\(\\frac{7}{9}-\\frac{2}{9}\\).", answer: "5/9", points: 1, hint: "Представьте 1/3 как 2/6.", solution: "5/6−2/6=3/6=1/2.", criteria: ["1 балл — указан ответ 1/2." ] },
+      { id: "VPR-03-01", topic: "Числа и вычисления", level: "base", type: "short", prompt: "Вычислите: \\(\\frac{7}{9}-\\frac{2}{9}\\).", answer: "5/9", points: 1, hint: "Вычтите числители при общем знаменателе 9.", solution: "7/9−2/9=5/9.", criteria: ["1 балл — указан ответ 5/9." ] },
       { id: "VPR-03-02", topic: "Алгебраические выражения", level: "base", type: "choice", prompt: "Упростите \\(4(x-2)+3\\).", answer: "4x-5", options: ["4x-5", "4x+5", "x-5", "4x-8"], points: 1, hint: "Раскройте скобки и сложите числа.", solution: "4x−8+3=4x−5.", criteria: ["1 балл — выбран ответ 4x−5." ] },
       { id: "VPR-03-03", topic: "Уравнения", level: "base", type: "short", prompt: "Решите уравнение \\(5x+7=3x+19\\).", answer: "6", points: 1, hint: "Перенесите слагаемые с x влево, числа вправо.", solution: "2x=12, x=6.", criteria: ["1 балл — указан корень x=6." ] },
       { id: "VPR-03-04", topic: "Функции", level: "base", type: "short", prompt: "Найдите значение \\(y=-x+4\\) при x=-2.", answer: "6", points: 1, hint: "Подставьте −2 вместо x.", solution: "y=−(−2)+4=6.", criteria: ["1 балл — указан ответ 6." ] },

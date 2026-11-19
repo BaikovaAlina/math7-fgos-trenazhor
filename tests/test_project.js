@@ -218,3 +218,7 @@ console.log(`PASS: ${dataContext.extraBank.length} legacy supplemental topics ×
 console.log(`PASS: ${dataContext.algebraBank.length} new algebra topics × 15 = 135 exercises; difficulty ${JSON.stringify(algebraLevelCounts)}.`);
 console.log(`PASS: ${Object.keys(dataContext.allTasks).length} variants, 463 total question slides, 663 answer inputs.`);
 console.log("PASS: HTML structure, MathJax loading, legacy fraction removal, and accordion styles.");
+
+// Run the expanded bank and VPR suite
+require("./test_expanded_bank.js");
+
