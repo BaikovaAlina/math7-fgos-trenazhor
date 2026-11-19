@@ -46,7 +46,7 @@ math7-fgos-trenazhor/
 
 ### Однократная настройка Cloudflare Worker
 
-1. Войдите в Cloudflare и создайте API Token с правом **Account → Workers Scripts → Edit**. Скопируйте Account ID из панели Cloudflare.
+1. Войдите в Cloudflare и создайте API Token по шаблону **Edit Cloudflare Workers**, ограничьте его нужным аккаунтом и скопируйте Account ID. В GitHub Actions сохраняйте токен только как Secret.
 2. В GitHub откройте **Settings → Secrets and variables → Actions** и создайте Secrets:
    - `CLOUDFLARE_API_TOKEN` — токен Cloudflare;
    - `CLOUDFLARE_ACCOUNT_ID` — Account ID;
