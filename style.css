@@ -444,6 +444,8 @@ body {
   gap: 8px;
   flex-wrap: wrap;
   font-size: 18px;
+  line-height: 1.6;
+  padding: 2px 0;
 }
 
 /* Поля ввода ответа */
@@ -839,6 +841,22 @@ body {
   white-space: normal;
 }
 
+.math-fallback sup {
+  font-size: 0.78em;
+  line-height: 0;
+  vertical-align: 0.45em;
+  font-family: inherit;
+  font-style: normal;
+}
+
+.math-fallback sub {
+  font-size: 0.78em;
+  line-height: 0;
+  vertical-align: -0.25em;
+  font-family: inherit;
+  font-style: normal;
+}
+
 /* CDN-independent fallback uses the same stacked fraction shape, without slash notation. */
 .math-fallback-fraction {
   display: inline-flex;
@@ -887,7 +905,7 @@ body {
   display: inline-block;
   max-width: 100%;
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: visible;
   vertical-align: middle;
   font-size: 1em;
 }

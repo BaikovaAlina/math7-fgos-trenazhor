@@ -65,6 +65,8 @@ function readTexArgument(source, start) {
     const command = source.slice(index + 1).match(/^[A-Za-z]+/);
     if (command) return { value: `\\${command[0]}`, end: index + command[0].length + 1 };
   }
+  const token = source.slice(index).match(/^[+-]?\d+/);
+  if (token) return { value: token[0], end: index + token[0].length };
   return { value: source[index] || "", end: Math.min(index + 1, source.length) };
 }
 
@@ -199,6 +201,13 @@ function formatMath(text) {
     chunk = chunk.replace(/(?<![A-Za-z0-9])([−-]?\d+)\\(?:dfrac|tfrac|frac)\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g,
       (whole, integer, numerator, denominator) => slot(`${integer}\\frac{${numerator}}{${denominator}}`, whole));
 
+    // Powered fractions: (\frac{a}{b})^n
+    chunk = chunk.replace(/(?<![A-Za-z0-9])\(\s*(\\(?:dfrac|tfrac|frac)\{[^{}]+\}\{[^{}]+\})\s*\)\^([A-Za-z0-9?]+|\{[^{}]+\})/g,
+      (whole, frac, exp) => {
+        const tex = `\\left(${frac}\\right)^{${exp.replace(/[{}]/g, "")}}`;
+        return slot(tex, readableMath(tex));
+      });
+
     // Protect complete TeX fractions and radicals before scanning their nested contents.
     const texCommand = /\\(dfrac|tfrac|frac|sqrt)(?![A-Za-z])\s*/g;
     let protectedTex = "";
@@ -234,7 +243,7 @@ function formatMath(text) {
       });
 
     // Implicit products (2(a+b), x(x+1), (a+b)(a-b)) stay one formula unit.
-    const implicitProduct = /(?<![A-Za-z0-9])([+-]?(?:(?:\d+)?[A-Za-z](?:\^\{[^{}]+\}|\^-?\d+)?(?:[A-Za-z](?:\^\{[^{}]+\}|\^-?\d+)?)*|\d+))((?:\([^()]+\))+)(?![A-Za-z0-9])/g;
+    const implicitProduct = /(?<![A-Za-z0-9])([+-]?(?:(?:\d+)?[A-Za-z](?:\^\{[^{}]+\}|\^-?\d+)?(?:[A-Za-z](?:\^\{[^{}]+\}|\^-?\d+)?)*|\d+))((?:\([^()]+\)(?:\^\{[^{}]+\}|\^-?\d+)?)+)(?![A-Za-z0-9])/g;
     chunk = chunk.replace(implicitProduct, (whole, left, right) => {
       if (containsSlot(whole)) return whole;
       const tex = texifyExpression(`${left}${right}`);
@@ -252,7 +261,7 @@ function formatMath(text) {
       });
 
     // Wrap whole algebraic sequences together: powers, polynomials, products, ratios, roots.
-    const atom = String.raw`(?:\\frac\{[^{}]*\}\{[^{}]*\}|\\sqrt\{[^{}]*\}|\|[^|]+\||\([^()]*\)(?:\^\{[^{}]+\}|\^-?[A-Za-z0-9]+)?|(?:[+-]?(?:\d+(?:[.,]\d+)?)?)(?:[A-Za-z](?:\^\{[^{}]+\}|\^-?[A-Za-z0-9]+)?)+|[+-]?\d+(?:[.,]\d+)?(?:°|%)?)`;
+    const atom = String.raw`(?:\\frac\{[^{}]*\}\{[^{}]*\}|\\sqrt\{[^{}]*\}|\|[^|]+\||\([^()]+\)(?:\^\{[^{}]+\}|\^[A-Za-z0-9?+\-−]+)?|(?:[+-]?(?:\d+(?:[.,]\d+)?)?)(?:[A-Za-z](?:\^\{[^{}]+\}|\^[A-Za-z0-9?+\-−]+)?)+|[+-]?\d+(?:[.,]\d+)?(?:\^\{[^{}]+\}|\^[A-Za-z0-9?+\-−]+)?(?:°|%)?)`;
     const operator = String.raw`(?:[+\-−=×*·/:<>≤≥])`;
     const sequence = new RegExp(`(?<![\\p{L}\\p{N}({])(${atom}(?:\\s*${operator}\\s*${atom})+)(?![\\p{L}\\p{N}])`, "gu");
     chunk = chunk.replace(sequence, (whole, expression) => {
@@ -268,21 +277,25 @@ function formatMath(text) {
       return slot(`\\frac{${numerator}}{${denominator}}`, unicodeFractions[glyph]);
     });
 
-    // Standalone powers and absolute values must be protected before monomial matching.
-    chunk = chunk.replace(/(?<![A-Za-z0-9])((?:\([^()]+\)|[A-Za-z0-9]+))\^((?:\{[^{}]+\})|-?\d+)(?![A-Za-z0-9])/g,
-      (whole, base, exponent) => {
-        const tex = texifyExpression(`${base}^${exponent}`);
-        return slot(tex, readableMath(tex));
-      });
+    // Absolute values must be protected before inner monomials are scanned.
     chunk = chunk.replace(/(?<![A-Za-z0-9])\|([^|\uE000-\uEFFF]+)\|/g,
       (whole, inner) => slot(`\\left|${texifyExpression(inner)}\\right|`, whole));
 
-    // Standalone monomials (2a, 3ab, -5x^2y) use the same MathJax path.
-    const monomial = /(?<![A-Za-z0-9])([+-]?(?:(?:\d+(?:[.,]\d+)?)?[A-Za-z](?:\^\{[^{}]+\}|\^-?[A-Za-z0-9]+)?(?:[A-Za-z](?:\^\{[^{}]+\}|\^-?[A-Za-z0-9]+)?)*))(?![A-Za-z0-9])/g;
+    // Standalone monomials (2a, 3ab, -5x^2y, 7a^3b^2) run before bare powers so variable factors stay united.
+    const monomial = /(?<![A-Za-z0-9])([+-−]?(?:(?:\d+(?:[.,]\d+)?)?[A-Za-z](?:\^\{[^{}]+\}|\^-?\d+)*(?:[A-Za-z](?:\^\{[^{}]+\}|\^-?\d+)*)*))(?![A-Za-z0-9])/g;
     chunk = chunk.replace(monomial, (whole, expression) => {
+      if (containsSlot(expression)) return whole;
       const tex = texifyExpression(expression);
       return slot(tex, readableMath(tex));
     });
+
+    // Standalone powers.
+    chunk = chunk.replace(/(?<![A-Za-z0-9])((?:\([^()]+\)|[A-Za-z0-9]+))\^((?:\{[^{}]+\})|-?\d+|[A-Za-z?])(?![A-Za-z0-9])/g,
+      (whole, base, exponent) => {
+        if (containsSlot(whole)) return whole;
+        const tex = texifyExpression(`${base}^${exponent}`);
+        return slot(tex, readableMath(tex));
+      });
 
     // A final legacy pass for any isolated slash fraction or radical missed by the scanner.
     chunk = chunk.replace(/(?<![A-Za-z0-9])([−-]?\d+|[A-Za-z])\s*\/\s*(\d+|[A-Za-z])(?![A-Za-z0-9])/g,
@@ -449,6 +462,7 @@ function checkAnswer(userVal, correctPattern, type) {
 // Public, read-only helpers for the optional offline practice/VPR page.
 window.Math7Answer = Object.freeze({ checkAnswer, parseMathNumber });
 window.Math7Format = formatMath;
+window.Math7Typeset = typesetMath;
 
 /* ============================================================
  * 2. ИНИЦИАЛИЗАЦИЯ И РЕНДЕРИНГ ТРЕНАЖЁРА
@@ -564,9 +578,10 @@ function loadVariant(vKey) {
     if (theoryLines.length) {
       html += `
         <details class="hint-box theory-accordion">
-          <summary>📘 Краткая теория</summary>
+          <summary>📘 Краткая теория и разбор</summary>
           <div class="theory-accordion-content">${theoryLines.map(formatMath).join("<br>")}</div>
-          ${q.theory && q.hints?.length ? `<div class="theory-sample"><b>Короткий разбор:</b><br>${q.hints.map(formatMath).join("<br>")}</div>` : ""}
+          ${q.theory && q.hints?.length ? `<div class="theory-sample"><b>Подсказка:</b><br>${q.hints.map(formatMath).join("<br>")}</div>` : ""}
+          ${q.solution ? `<div class="theory-sample" style="margin-top:6px;"><b>💡 Краткое решение:</b><br>${formatMath(q.solution)}</div>` : ""}
         </details>
       `;
     }

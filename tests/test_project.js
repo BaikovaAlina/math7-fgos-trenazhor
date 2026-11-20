@@ -219,6 +219,7 @@ console.log(`PASS: ${dataContext.algebraBank.length} new algebra topics × 15 = 
 console.log(`PASS: ${Object.keys(dataContext.allTasks).length} variants, 463 total question slides, 663 answer inputs.`);
 console.log("PASS: HTML structure, MathJax loading, legacy fraction removal, and accordion styles.");
 
-// Run the expanded bank and VPR suite
+// Run the expanded bank, VPR suite, and textbook task bank
 require("./test_expanded_bank.js");
+require("./test_textbook_tasks.js");
 

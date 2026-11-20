@@ -82,7 +82,15 @@
     typesetIfPresent(list);
   }
   function typesetIfPresent(root) {
-    if (window.MathJax?.typesetPromise) window.MathJax.typesetPromise([root]).catch(() => {});
+    if (window.Math7Typeset) {
+      window.Math7Typeset(root);
+    } else if (window.MathJax?.typesetPromise) {
+      window.MathJax.typesetPromise([root]).then(() => {
+        root.querySelectorAll(".math-render").forEach((node) => {
+          if (node.querySelector("mjx-container")) node.classList.add("is-rendered");
+        });
+      }).catch(() => {});
+    }
   }
 
   function selectVpr() {
