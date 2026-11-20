@@ -360,6 +360,7 @@ function canon(val) {
     .replace(/\\cdot|\\times/g, "·").replace(/\\div/g, ":")
     .replace(/[−–—]/g, "-").replace(/°/g, "")
     .replace(/[×*х∙⋅]/g, "·")
+    .replace(/>=/g, "≥").replace(/<=/g, "≤")
     .replace(/\s+/g, " ");
   return s;
 }

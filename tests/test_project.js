@@ -69,6 +69,8 @@ assert(logic.checkAnswer("2a2b", "2a^2b", ""), "flattened monomial exponents sho
 assert(logic.checkAnswer("\\frac{2x}{3}", "2x/3", ""), "TeX algebraic fractions should match slash notation");
 assert(logic.checkAnswer("\\frac{3}{4}", "0.75", ""), "TeX numeric fractions should compare with decimals");
 assert(logic.checkAnswer("x⁻²", "x^{-2}", ""), "Unicode negative exponents should match TeX powers");
+assert(logic.checkAnswer("x >= 5", "x≥5", ""), "x >= 5 should match x≥5");
+assert(logic.checkAnswer("x <= 4", "x≤4", ""), "x <= 4 should match x≤4");
 assert(!logic.checkAnswer("1/0", "0", ""), "zero-denominator fractions must not parse as numbers");
 
 const dataContext = {};
@@ -133,6 +135,23 @@ for (const theme of dataContext.algebraBank) {
     `${theme.title} should evenly distribute 5 tasks across each difficulty`);
 }
 assert.deepEqual(algebraLevelCounts, { "Базовый": 45, "Средний": 45, "Повышенный": 45 });
+
+// Verify that all 198 original questions in TASKS have step-by-step solutions
+let tasksWithSolution = 0;
+for (const [vk, variant] of Object.entries(dataContext.allTasks)) {
+  if (/^[KD]-\d+$/.test(vk)) {
+    for (const q of variant.questions) {
+      assert(q.solution && q.solution.length > 5, `${vk} Q${q.num} must have a step-by-step solution`);
+      tasksWithSolution++;
+    }
+  }
+}
+assert.equal(tasksWithSolution, 198, "All 198 original questions must have step-by-step solutions");
+
+// Verify specific corrected formulations
+assert(dataContext.allTasks["K-7"].questions[3].tasks[0].label.includes("свободный член"), "K-7 Q4 must ask for свободный член");
+assert.equal(dataContext.allTasks["D-10"].questions[3].tasks[0].inputs[0].a, "4", "D-10 Q4 answer must be 4");
+assert(dataContext.allTasks["K-2"].questions[3].solution.includes("1^{100} = 1"), "K-2 Q4 solution must explain 1^{100} = 1");
 
 // Walk the complete legacy task bank and theory to ensure the shared renderer handles all strings.
 let formattedStrings = 0;
